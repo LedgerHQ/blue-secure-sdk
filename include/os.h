@@ -1,5 +1,5 @@
 /*******************************************************************************
-*   Ledger Blue - Secure firmware
+*   Ledger Blue - secure firmware
 *   (c) 2016 Ledger
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,6 @@
 *  See the License for the specific language governing permissions and
 *  limitations under the License.
 ********************************************************************************/
-
 
 #ifndef OS_H
 #define OS_H
@@ -45,6 +44,7 @@
 #define __MPU_PRESENT 1 // THANKS ST FOR YOUR HARDWORK
 #include <core_sc000.h>
 #include <product.h>
+
 
 #ifndef NULL
 #define NULL ((void *)0)
@@ -111,6 +111,11 @@ unsigned int pic(unsigned int linked_address);
 #define APPLICATION_FLAG_SHARED_NVRAM 0x20
 #define APPLICATION_FLAG_GLOBAL_PIN 0x40
 
+// This flag means the application is meant to be debugged and allows for dump
+// or core ARM register in
+// case of a fault detection
+#define APPLICATION_FLAG_DEBUG 0x80
+
 /**
  * Application is disabled (during its upgrade or whatever)
  */
@@ -131,7 +136,7 @@ typedef struct try_context_s try_context_t;
 
 // structure to reduce the code size generated for the close try (on stm7)
 struct try_context_s {
-    // current exception context
+// current exception context
     jmp_buf jmp_buf;
 
     // previous exception contexts (if null, then will fail the same way as
@@ -383,7 +388,7 @@ typedef enum bolos_ux_e {
     BOLOS_UX_BOOT_RECOVERY,
     BOLOS_UX_BOOT_ONBOARDING,
     BOLOS_UX_BOOT,
-    BOLOS_UX_BOOT_UNSIGNED_WIPE,
+    BOLOS_UX_BOOT_UNSAFE_WIPE,
     BOLOS_UX_DASHBOARD,
 
     // cleanup screen displayed by the previous ux, useful for
@@ -508,11 +513,22 @@ SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_perso_set_pin(
     unsigned char *pin PLENGTH(length), unsigned int length);
 SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_perso_set_seed(
     unsigned char *seed PLENGTH(length), unsigned int length);
+SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_perso_set_words(
+    unsigned char *words PLENGTH(length), unsigned int length);
+SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_perso_set_devname(
+    unsigned char *devname PLENGTH(length), unsigned int length);
 SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_perso_finalize(void);
 
 // checked in the ux flow to avoid asking the pin for example
-SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) unsigned int os_perso_isonboarded(
-    void);
+// NBA : could also be checked by applications running in unsecure mode - thus
+// unprivilegied
+SYSCALL unsigned int os_perso_isonboarded(void);
+
+// derive a seed on the given BIP32 path
+// TODO : permissioned by application path(s), per application
+SYSCALL void os_perso_derive_seed_bip32(
+    unsigned int *path PLENGTH(4 * pathLength), unsigned int pathLength,
+    unsigned char *privateKey PLENGTH(32), unsigned char *chain PLENGTH(32));
 
 // nvram shared zone access right => MPU opening at application switch, using a
 // flags in the registry

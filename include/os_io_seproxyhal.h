@@ -1,5 +1,5 @@
 /*******************************************************************************
-*   Ledger Blue - Secure firmware
+*   Ledger Blue - secure firmware
 *   (c) 2016 Ledger
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,6 @@
 *  See the License for the specific language governing permissions and
 *  limitations under the License.
 ********************************************************************************/
-
 
 #ifndef OS_IO_SEPROXYHAL_H
 #define OS_IO_SEPROXYHAL_H
@@ -141,6 +140,10 @@ struct bagl_element_e {
 void io_seproxyhal_touch(const bagl_element_t *elements,
                          unsigned short element_count, unsigned short x,
                          unsigned short y, unsigned char event_kind);
+void io_seproxyhal_touch_element_callback(
+    const bagl_element_t *elements, unsigned short element_count,
+    unsigned short x, unsigned short y, unsigned char event_kind,
+    bagl_element_callback_t before_display);
 // callback to be implemented by the se
 void io_seproxyhal_touch_callback(const bagl_element_t *element,
                                   unsigned char event);
@@ -155,7 +158,6 @@ void io_seproxyhal_display_default(bagl_element_t *element);
 
 extern unsigned char G_io_seproxyhal_spi_buffer[IO_SEPROXYHAL_BUFFER_SIZE_B];
 
-// can be called by application
 SYSCALL void io_seproxyhal_spi_send(unsigned char *buffer PLENGTH(length),
                                     unsigned short length);
 
@@ -166,7 +168,8 @@ SYSCALL unsigned short
 io_seproxyhal_spi_recv(unsigned char *buffer PLENGTH(maxlength),
                        unsigned short maxlength, unsigned int flags);
 
-// HAL init
+// HAL init, not meant to be called by applications, which shall call
+// ::io_seproxyhal_init instead
 SYSCALL void io_seproxyhal_spi_init(void);
 
 void io_seproxyhal_init(void);
@@ -187,6 +190,9 @@ unsigned int io_seproxyhal_handle_event(void);
 
 // reply a general status last command
 void io_seproxyhal_general_status(void);
+
+// reply a MORE COMMANDS status for the proxyhal to wait for more data later
+void os_io_seproxyhal_general_status_processing(void);
 
 void io_usb_send_apdu_data(unsigned char *buffer, unsigned short length);
 

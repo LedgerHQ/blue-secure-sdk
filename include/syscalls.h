@@ -1,5 +1,5 @@
 /*******************************************************************************
-*   Ledger Blue - Secure firmware
+*   Ledger Blue - secure firmware
 *   (c) 2016 Ledger
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,6 @@
 *  limitations under the License.
 ********************************************************************************/
 
-
 /* MACHINE GENERATED: DO NOT MODIFY */
 #ifndef SYSCALL_DEFS_H
 #define SYSCALL_DEFS_H
@@ -25,7 +24,8 @@
 #define EXC_RETURN_HANDLER_MSP 0xFFFFFFF1
 
 // called when entering the SVC Handler C
-void syscall_enter(unsigned int entry_lr);
+void syscall_enter(unsigned int syscall_id, unsigned int entry_lr);
+void syscall_exit(void);
 
 unsigned int syscall_check_app_address(unsigned int *parameters,
                                        unsigned int checked_idx,
@@ -205,67 +205,81 @@ void os_perso_set_pin(unsigned char *pin, unsigned int length);
 #define SYSCALL_os_perso_set_seed_ID_OUT 0x900025b1UL
 void os_perso_set_seed(unsigned char *seed, unsigned int length);
 
-#define SYSCALL_os_perso_finalize_ID_IN 0x60002680UL
-#define SYSCALL_os_perso_finalize_ID_OUT 0x90002654UL
+#define SYSCALL_os_perso_set_words_ID_IN 0x6000263dUL
+#define SYSCALL_os_perso_set_words_ID_OUT 0x9000268cUL
+void os_perso_set_words(unsigned char *words, unsigned int length);
+
+#define SYSCALL_os_perso_set_devname_ID_IN 0x6000277bUL
+#define SYSCALL_os_perso_set_devname_ID_OUT 0x900027beUL
+void os_perso_set_devname(unsigned char *devname, unsigned int length);
+
+#define SYSCALL_os_perso_finalize_ID_IN 0x60002880UL
+#define SYSCALL_os_perso_finalize_ID_OUT 0x90002854UL
 void os_perso_finalize(void);
 
-#define SYSCALL_os_perso_isonboarded_ID_IN 0x6000279aUL
-#define SYSCALL_os_perso_isonboarded_ID_OUT 0x900027d5UL
+#define SYSCALL_os_perso_isonboarded_ID_IN 0x6000299aUL
+#define SYSCALL_os_perso_isonboarded_ID_OUT 0x900029d5UL
 unsigned int os_perso_isonboarded(void);
 
-#define SYSCALL_os_global_pin_is_validated_ID_IN 0x60002889UL
-#define SYSCALL_os_global_pin_is_validated_ID_OUT 0x90002845UL
+#define SYSCALL_os_perso_derive_seed_bip32_ID_IN 0x60002a6fUL
+#define SYSCALL_os_perso_derive_seed_bip32_ID_OUT 0x90002a4bUL
+void os_perso_derive_seed_bip32(unsigned int *path, unsigned int pathLength,
+                                unsigned char *privateKey,
+                                unsigned char *chain);
+
+#define SYSCALL_os_global_pin_is_validated_ID_IN 0x60002b89UL
+#define SYSCALL_os_global_pin_is_validated_ID_OUT 0x90002b45UL
 unsigned int os_global_pin_is_validated(void);
 
-#define SYSCALL_os_global_pin_check_ID_IN 0x6000296fUL
-#define SYSCALL_os_global_pin_check_ID_OUT 0x9000291eUL
+#define SYSCALL_os_global_pin_check_ID_IN 0x60002c6fUL
+#define SYSCALL_os_global_pin_check_ID_OUT 0x90002c1eUL
 unsigned int os_global_pin_check(unsigned char *pin_buffer,
                                  unsigned char pin_length);
 
-#define SYSCALL_os_global_pin_invalidate_ID_IN 0x60002ad0UL
-#define SYSCALL_os_global_pin_invalidate_ID_OUT 0x90002afbUL
+#define SYSCALL_os_global_pin_invalidate_ID_IN 0x60002dd0UL
+#define SYSCALL_os_global_pin_invalidate_ID_OUT 0x90002dfbUL
 void os_global_pin_invalidate(void);
 
-#define SYSCALL_os_global_pin_retries_ID_IN 0x60002b59UL
-#define SYSCALL_os_global_pin_retries_ID_OUT 0x90002b18UL
+#define SYSCALL_os_global_pin_retries_ID_IN 0x60002e59UL
+#define SYSCALL_os_global_pin_retries_ID_OUT 0x90002e18UL
 unsigned int os_global_pin_retries(void);
 
-#define SYSCALL_os_registry_count_ID_IN 0x60002c40UL
-#define SYSCALL_os_registry_count_ID_OUT 0x90002c06UL
+#define SYSCALL_os_registry_count_ID_IN 0x60002f40UL
+#define SYSCALL_os_registry_count_ID_OUT 0x90002f06UL
 unsigned int os_registry_count(void);
 
-#define SYSCALL_os_registry_get_ID_IN 0x60002d65UL
-#define SYSCALL_os_registry_get_ID_OUT 0x90002db2UL
+#define SYSCALL_os_registry_get_ID_IN 0x60003065UL
+#define SYSCALL_os_registry_get_ID_OUT 0x900030b2UL
 void os_registry_get(unsigned int index, application_t *out_application_entry);
 
-#define SYSCALL_os_sched_exec_ID_IN 0x60002e79UL
-#define SYSCALL_os_sched_exec_ID_OUT 0x90002e48UL
+#define SYSCALL_os_sched_exec_ID_IN 0x60003179UL
+#define SYSCALL_os_sched_exec_ID_OUT 0x90003148UL
 void os_sched_exec(unsigned int application_index);
 
-#define SYSCALL_os_sched_exit_ID_IN 0x60002fe1UL
-#define SYSCALL_os_sched_exit_ID_OUT 0x90002f6fUL
+#define SYSCALL_os_sched_exit_ID_IN 0x600032e1UL
+#define SYSCALL_os_sched_exit_ID_OUT 0x9000326fUL
 void os_sched_exit(unsigned int exit_code);
 
-#define SYSCALL_os_ux_register_ID_IN 0x60003015UL
-#define SYSCALL_os_ux_register_ID_OUT 0x900030b9UL
+#define SYSCALL_os_ux_register_ID_IN 0x60003315UL
+#define SYSCALL_os_ux_register_ID_OUT 0x900033b9UL
 void os_ux_register(bolos_ux_params_t *parameter_ram_pointer);
 
-#define SYSCALL_os_ux_ID_IN 0x60003158UL
-#define SYSCALL_os_ux_ID_OUT 0x9000311fUL
+#define SYSCALL_os_ux_ID_IN 0x60003458UL
+#define SYSCALL_os_ux_ID_OUT 0x9000341fUL
 unsigned int os_ux(bolos_ux_params_t *params);
 
-#define SYSCALL_io_seproxyhal_spi_send_ID_IN 0x6000320fUL
-#define SYSCALL_io_seproxyhal_spi_send_ID_OUT 0x90003215UL
+#define SYSCALL_io_seproxyhal_spi_send_ID_IN 0x6000350fUL
+#define SYSCALL_io_seproxyhal_spi_send_ID_OUT 0x90003515UL
 void io_seproxyhal_spi_send(unsigned char *buffer, unsigned short length);
 
-#define SYSCALL_io_seproxyhal_spi_recv_ID_IN 0x600033d1UL
-#define SYSCALL_io_seproxyhal_spi_recv_ID_OUT 0x9000332bUL
+#define SYSCALL_io_seproxyhal_spi_recv_ID_IN 0x600036d1UL
+#define SYSCALL_io_seproxyhal_spi_recv_ID_OUT 0x9000362bUL
 unsigned short io_seproxyhal_spi_recv(unsigned char *buffer,
                                       unsigned short maxlength,
                                       unsigned int flags);
 
-#define SYSCALL_io_seproxyhal_spi_init_ID_IN 0x600034aaUL
-#define SYSCALL_io_seproxyhal_spi_init_ID_OUT 0x900034cbUL
+#define SYSCALL_io_seproxyhal_spi_init_ID_IN 0x600037aaUL
+#define SYSCALL_io_seproxyhal_spi_init_ID_OUT 0x900037cbUL
 void io_seproxyhal_spi_init(void);
 
 #endif // SYSCALL_DEFS_H

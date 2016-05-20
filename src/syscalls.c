@@ -578,6 +578,30 @@ void os_perso_set_seed(unsigned char *seed, unsigned int length) {
     }
 }
 
+void os_perso_set_words(unsigned char *words, unsigned int length) {
+    unsigned int parameters[2 + 2];
+    parameters[0] = (unsigned int)SYSCALL_os_perso_set_words_ID_IN;
+    parameters[1] = (unsigned int)G_try_last_open_context->jmp_buf;
+    parameters[2] = (unsigned int)words;
+    parameters[3] = (unsigned int)length;
+    SVC_Call(parameters);
+    if (parameters[0] != SYSCALL_os_perso_set_words_ID_OUT) {
+        THROW(EXCEPTION_SECURITY);
+    }
+}
+
+void os_perso_set_devname(unsigned char *devname, unsigned int length) {
+    unsigned int parameters[2 + 2];
+    parameters[0] = (unsigned int)SYSCALL_os_perso_set_devname_ID_IN;
+    parameters[1] = (unsigned int)G_try_last_open_context->jmp_buf;
+    parameters[2] = (unsigned int)devname;
+    parameters[3] = (unsigned int)length;
+    SVC_Call(parameters);
+    if (parameters[0] != SYSCALL_os_perso_set_devname_ID_OUT) {
+        THROW(EXCEPTION_SECURITY);
+    }
+}
+
 void os_perso_finalize(void) {
     unsigned int parameters[2];
     parameters[0] = (unsigned int)SYSCALL_os_perso_finalize_ID_IN;
@@ -597,6 +621,22 @@ unsigned int os_perso_isonboarded(void) {
         THROW(EXCEPTION_SECURITY);
     }
     return (unsigned int)parameters[2];
+}
+
+void os_perso_derive_seed_bip32(unsigned int *path, unsigned int pathLength,
+                                unsigned char *privateKey,
+                                unsigned char *chain) {
+    unsigned int parameters[2 + 4];
+    parameters[0] = (unsigned int)SYSCALL_os_perso_derive_seed_bip32_ID_IN;
+    parameters[1] = (unsigned int)G_try_last_open_context->jmp_buf;
+    parameters[2] = (unsigned int)path;
+    parameters[3] = (unsigned int)pathLength;
+    parameters[4] = (unsigned int)privateKey;
+    parameters[5] = (unsigned int)chain;
+    SVC_Call(parameters);
+    if (parameters[0] != SYSCALL_os_perso_derive_seed_bip32_ID_OUT) {
+        THROW(EXCEPTION_SECURITY);
+    }
 }
 
 unsigned int os_global_pin_is_validated(void) {

@@ -22,7 +22,7 @@
 #include "os_io_seproxyhal.h"
 
 #ifdef DEBUG
-#define LOG screen_printf
+#define LOG printf
 #else
 #define LOG(...)
 #endif
@@ -43,6 +43,19 @@ void io_seproxyhal_general_status(void) {
     G_io_seproxyhal_spi_buffer[4] = SEPROXYHAL_TAG_GENERAL_STATUS_LAST_COMMAND;
     io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 5);
 }
+
+void os_io_seproxyhal_general_status_processing(void) {
+    // send the general status
+    G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_GENERAL_STATUS;
+    G_io_seproxyhal_spi_buffer[1] = 0;
+    G_io_seproxyhal_spi_buffer[2] = 2;
+    G_io_seproxyhal_spi_buffer[3] =
+        SEPROXYHAL_TAG_GENERAL_STATUS_MORE_COMMAND >> 8;
+    G_io_seproxyhal_spi_buffer[4] = SEPROXYHAL_TAG_GENERAL_STATUS_MORE_COMMAND;
+    io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 5);
+}
+
+//#define WAIT_MS(x) { volatile unsigned int i = 0xAA*x; while (i--); }
 
 #ifdef HAVE_IO_USB
 #ifdef HAVE_L4_USBLIB
@@ -134,9 +147,7 @@ void io_usb_send_apdu_data(unsigned char *buffer, unsigned short length) {
                 LOG("missing NOTIFY_INDICATE event, %02X received\n",
                     G_io_seproxyhal_spi_buffer[0]);
             }
-
-            // ack and wiat next event
-            io_seproxyhal_general_status();
+            // no general status ack, io_event is responsible for it
             continue;
         }
 
@@ -158,6 +169,8 @@ unsigned int io_seproxyhal_handle_event(void) {
         }
         io_seproxyhal_handle_usb_event();
 
+        // WAIT_MS(1);
+
         // no state change, we're not dealing with an apdu yet
         io_seproxyhal_general_status();
         return 1;
@@ -168,6 +181,8 @@ unsigned int io_seproxyhal_handle_event(void) {
             return 0;
         }
         io_seproxyhal_handle_usb_ep_xfer_event();
+
+        // WAIT_MS(1);
 
         io_seproxyhal_general_status();
         return 1;
@@ -210,16 +225,22 @@ void io_seproxyhal_init(void) {
 
 #ifdef HAVE_BAGL
 
-void io_seproxyhal_touch_out(const bagl_element_t *element) {
+void io_seproxyhal_touch_out(const bagl_element_t *element,
+                             bagl_element_callback_t before_display) {
     if (element->out != NULL) {
         if (!((bagl_element_callback_t)PIC(element->out))(element)) {
             return;
         }
     }
+    if (before_display && !before_display(element)) {
+        return;
+    }
+
     io_seproxyhal_display(element);
 }
 
-void io_seproxyhal_touch_over(const bagl_element_t *element) {
+void io_seproxyhal_touch_over(const bagl_element_t *element,
+                              bagl_element_callback_t before_display) {
     bagl_element_t e;
     if (element->over != NULL) {
         if (!((bagl_element_callback_t)PIC(element->over))(element)) {
@@ -229,14 +250,22 @@ void io_seproxyhal_touch_over(const bagl_element_t *element) {
     os_memmove(&e, element, sizeof(bagl_element_t));
     e.component.fgcolor = element->overfgcolor;
     e.component.bgcolor = element->overbgcolor;
+
+    if (before_display && !before_display(element)) {
+        return;
+    }
     io_seproxyhal_display(&e);
 }
 
-void io_seproxyhal_touch_tap(const bagl_element_t *element) {
+void io_seproxyhal_touch_tap(const bagl_element_t *element,
+                             bagl_element_callback_t before_display) {
     if (element->tap != NULL) {
         if (!((bagl_element_callback_t)PIC(element->tap))(element)) {
             return;
         }
+    }
+    if (before_display && !before_display(element)) {
+        return;
     }
     io_seproxyhal_display(element);
 }
@@ -244,10 +273,24 @@ void io_seproxyhal_touch_tap(const bagl_element_t *element) {
 void io_seproxyhal_touch(const bagl_element_t *elements,
                          unsigned short element_count, unsigned short x,
                          unsigned short y, unsigned char event_kind) {
+    io_seproxyhal_touch_element_callback(elements, element_count, x, y,
+                                         event_kind, NULL);
+}
+
+void io_seproxyhal_touch_element_callback(
+    const bagl_element_t *elements, unsigned short element_count,
+    unsigned short x, unsigned short y, unsigned char event_kind,
+    bagl_element_callback_t before_display) {
     unsigned char comp_idx;
+    unsigned char last_touched_not_released_component_was_in_current_array = 0;
 
     // find the first empty entry
     for (comp_idx = 0; comp_idx < element_count; comp_idx++) {
+        // only perform out callback when element was in the current array,
+        // else, leave it be
+        if (&elements[comp_idx] == G_bagl_last_touched_not_released_component) {
+            last_touched_not_released_component_was_in_current_array = 1;
+        }
         // the first component drawn with a
         if ((elements[comp_idx].component.type & BAGL_FLAG_TOUCHABLE) &&
             elements[comp_idx].component.x -
@@ -267,29 +310,27 @@ void io_seproxyhal_touch(const bagl_element_t *elements,
                     G_bagl_last_touched_not_released_component &&
                 G_bagl_last_touched_not_released_component != NULL) {
                 io_seproxyhal_touch_out(
-                    G_bagl_last_touched_not_released_component);
+                    G_bagl_last_touched_not_released_component, before_display);
                 // ok component out has been emitted
                 G_bagl_last_touched_not_released_component = NULL;
-            }
 
-            // unmark the last component, we've been notified TOUCH
-            if (&elements[comp_idx] ==
-                    G_bagl_last_touched_not_released_component &&
-                event_kind == SEPROXYHAL_TAG_FINGER_EVENT_RELEASE) {
-                G_bagl_last_touched_not_released_component = NULL;
-            }
-            // remember the last touched component
-            else if (event_kind == SEPROXYHAL_TAG_FINGER_EVENT_TOUCH) {
-                G_bagl_last_touched_not_released_component =
-                    &elements[comp_idx];
+                // a display has probably been issued, avoid double display,
+                // wait for another touch event (20ms)
+                return;
             }
 
             // callback the hal to notify the component impacted by the user
             // input
             if (event_kind == SEPROXYHAL_TAG_FINGER_EVENT_RELEASE) {
-                io_seproxyhal_touch_tap(&elements[comp_idx]);
-            } else {
-                io_seproxyhal_touch_over(&elements[comp_idx]);
+                // unmark the last component, we've been notified TOUCH
+                G_bagl_last_touched_not_released_component = NULL;
+                io_seproxyhal_touch_tap(&elements[comp_idx], before_display);
+            } else if (event_kind == SEPROXYHAL_TAG_FINGER_EVENT_TOUCH) {
+                // remember the last touched component
+                G_bagl_last_touched_not_released_component =
+                    &elements[comp_idx];
+                // ask for overing
+                io_seproxyhal_touch_over(&elements[comp_idx], before_display);
             }
 
             // process all components matching the x/y/w/h (no break) => fishy
@@ -300,8 +341,10 @@ void io_seproxyhal_touch(const bagl_element_t *elements,
 
     // if overing out of component or over another component, the out event is
     // sent after the over event of the previous component
-    if (G_bagl_last_touched_not_released_component != NULL) {
-        io_seproxyhal_touch_out(G_bagl_last_touched_not_released_component);
+    if (last_touched_not_released_component_was_in_current_array &&
+        G_bagl_last_touched_not_released_component != NULL) {
+        io_seproxyhal_touch_out(G_bagl_last_touched_not_released_component,
+                                before_display);
         // ok component out has been emitted
         G_bagl_last_touched_not_released_component = NULL;
     }
@@ -396,6 +439,7 @@ after_debug:
                     goto break_send;
 #endif // HAVE_IO_USB
 
+#ifndef DISABLE_SEPROXYHAL_BLE_APDU
                 case APDU_BLE:
                     // split in notify blocks and wait for each notify block to
                     // be replied
@@ -487,6 +531,7 @@ after_debug:
                         goto break_send;
                     }
                     break;
+#endif // DISABLE_SEPROXYHAL_BLE_APDU
 
                 case APDU_NFC_M24SR:
                     // split in apdu to write into the M24SR and wait M24SR
@@ -726,7 +771,15 @@ after_debug:
             if (rx_len - 3 != U2(G_io_seproxyhal_spi_buffer[1],
                                  G_io_seproxyhal_spi_buffer[2])) {
                 LOG("invalid TLV format\n");
-                goto invalid_apdu_packet;
+            invalid_apdu_packet:
+                G_io_apdu_state = APDU_IDLE;
+                G_io_apdu_offset = 0;
+                G_io_apdu_length = 0;
+                G_io_apdu_seq = 0;
+
+            send_last_command:
+                io_seproxyhal_general_status();
+                continue;
             }
 
             // depending on received TAG
@@ -739,6 +792,8 @@ after_debug:
                 }
                 io_seproxyhal_handle_usb_event();
 
+                // WAIT_MS(1);
+
                 // no state change, we're not dealing with an apdu yet
                 goto send_last_command;
 
@@ -748,6 +803,8 @@ after_debug:
                     return 0;
                 }
                 io_seproxyhal_handle_usb_ep_xfer_event();
+
+                // WAIT_MS(1);
 
                 // an apdu has been received, ack with mode commands (the reply
                 // at least)
@@ -775,6 +832,7 @@ after_debug:
                 break;
 #endif // HAVE_IO_USB
 
+#ifndef DISABLE_SEPROXYHAL_BLE_APDU
             case SEPROXYHAL_TAG_BLE_WRITE_REQUEST_EVENT:
                 // join block of BLE apdu chunks into the CAPDU
 
@@ -794,16 +852,7 @@ after_debug:
                     if (U2(G_io_seproxyhal_spi_buffer[1],
                            G_io_seproxyhal_spi_buffer[2]) < 1 + 2 + 1 + 2 + 2) {
                         LOG("invalid minimal BLE_WITE_REQ length\n");
-                    invalid_apdu_packet:
-                        G_io_apdu_state = APDU_IDLE;
-                        G_io_apdu_offset = 0;
-                        G_io_apdu_length = 0;
-                        G_io_apdu_seq = 0;
-
-                    send_last_command:
-                        io_seproxyhal_general_status();
-
-                        break;
+                        goto invalid_apdu_packet;
                     }
 
                     // ensure this is an APDU command
@@ -900,6 +949,7 @@ after_debug:
                     // wait next command (or timeout)
                 }
                 break;
+#endif // DISABLE_SEPROXYHAL_BLE_APDU
 
             // event triggered upon write of the
             case SEPROXYHAL_TAG_M24SR_GPO_CHANGE_EVENT:
