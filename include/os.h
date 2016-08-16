@@ -1,5 +1,5 @@
 /*******************************************************************************
-*   Ledger Blue - secure firmware
+*   Ledger Nano S - Secure firmware
 *   (c) 2016 Ledger
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,18 +33,34 @@
 
 // Arch definitions
 
-#define macro_offsetof
+//#define macro_offsetof // already defined in stddef.h
 #define OS_LITTLE_ENDIAN
 #define NATIVE_64BITS
-#define WIDE // const
+#define WIDE // const // don't !!
 #define WIDE_AS_INT unsigned long int
 #define REENTRANT(x) x //
 
-#include <setjmp.h>
+//#include <setjmp.h>
+// GCC/LLVM declare way too big mjp context, reduce them to what is used on CM0+
+typedef int jmp_buf[10];
+
+// borrowed from setjmp.h
+
+#ifdef __GNUC__
+void longjmp(jmp_buf __jmpb, int __retval) __attribute__((__noreturn__));
+#else
+void longjmp(jmp_buf __jmpb, int __retval);
+#endif
+int setjmp(jmp_buf __jmpb);
+
 #define __MPU_PRESENT 1 // THANKS ST FOR YOUR HARDWORK
 #include <core_sc000.h>
-#include <product.h>
+#include "stddef.h"
+#include "stdint.h"
 
+#define UNUSED(x) (void) x
+
+#include "os_apilevel.h"
 
 #ifndef NULL
 #define NULL ((void *)0)
@@ -67,6 +83,11 @@ unsigned int pic(unsigned int linked_address);
 #ifndef SYSCALL
 // #define SYSCALL syscall
 #define SYSCALL
+#endif
+
+#ifndef TASKSWITCH
+// #define TASKSWITCH taskswitch
+#define TASKSWITCH
 #endif
 
 #ifndef SHARED
@@ -96,13 +117,9 @@ unsigned int pic(unsigned int linked_address);
  */
 #define APPLICATION_FLAG_BOLOS_UPGRADE 0x2
 
-/**
- * Mark this application as defaultly booting along with the bootloader (no
- * application menu displayed)
- * Only one application can have this at a time. It is managed by the bootloader
- * interface.
- */
-#define APPLICATION_FLAG_AUTOBOOT 0x4
+// this flag is set when a valid signature of the loaded application is
+// presented at the end of the bolos application load.
+#define APPLICATION_FLAG_SIGNED 0x4
 
 // must be set on one application in the registry which is used
 #define APPLICATION_FLAG_BOLOS_UX 0x8
@@ -115,6 +132,14 @@ unsigned int pic(unsigned int linked_address);
 // or core ARM register in
 // case of a fault detection
 #define APPLICATION_FLAG_DEBUG 0x80
+
+/**
+ * Mark this application as defaultly booting along with the bootloader (no
+ * application menu displayed)
+ * Only one application can have this at a time. It is managed by the bootloader
+ * interface.
+ */
+#define APPLICATION_FLAG_AUTOBOOT 0x100
 
 /**
  * Application is disabled (during its upgrade or whatever)
@@ -136,7 +161,7 @@ typedef struct try_context_s try_context_t;
 
 // structure to reduce the code size generated for the close try (on stm7)
 struct try_context_s {
-// current exception context
+    // current exception context
     jmp_buf jmp_buf;
 
     // previous exception contexts (if null, then will fail the same way as
@@ -164,6 +189,9 @@ extern try_context_t *G_try_last_open_context;
 // os entry point
 void app_main(void);
 
+// os initialization function to be called by application entry point
+void os_boot();
+
 /* ----------------------------------------------------------------------- */
 /* -                            OS FUNCTIONS                             - */
 /* ----------------------------------------------------------------------- */
@@ -177,7 +205,8 @@ void app_main(void);
      (((unsigned long int)(u32) >> 8) & 0x0000FF00UL) |                        \
      ((unsigned long int)(u32) << 24))
 
-REENTRANT(void os_memmove(void *dst, void WIDE *src, unsigned short length));
+REENTRANT(void os_memmove(void *dst, const void WIDE *src,
+                          unsigned short length));
 #define os_memcpy os_memmove
 
 void os_memset(void *dst, unsigned char c, unsigned short length);
@@ -190,8 +219,8 @@ void os_xor(void *dst, void WIDE *src1, void WIDE *src2, unsigned short length);
 // patch point, address used to dispatch, no index
 REENTRANT(void patch(void));
 
-// receive the chip
-REENTRANT(void reset(void));
+// reset the chip
+SYSCALL REENTRANT(void reset(void));
 
 // send tx_len bytes (atr or rapdu) and retrieve the length of the next command
 // apdu (over the requested channel)
@@ -201,6 +230,8 @@ REENTRANT(void reset(void));
 #define IO_RESET_AFTER_REPLIED 0x80
 #define IO_RECEIVE_DATA 0x40
 #define IO_RETURN_AFTER_TX 0x20
+#define IO_ASYNCH_REPLY                                                        \
+    0x10 // avoid apdu state reset if tx_len == 0 when we're expected to reply
 #define IO_FLAGS 0xF0
 unsigned short io_exchange(unsigned char channel_and_flags,
                            unsigned short tx_len);
@@ -344,6 +375,9 @@ SYSCALL void nvm_write(void WIDE *dst_adr PLENGTH(src_len),
 #define TIMEOUT 10
 #define EXCEPTION_PIC 11
 #define EXCEPTION_APPEXIT 12
+#define EXCEPTION_IO_OVERFLOW 13
+#define EXCEPTION_IO_HEADER 14
+#define EXCEPTION_IO_STATE 15
 
 // -----------------------------------------------------------------------
 // - BASIC MATHS
@@ -384,12 +418,16 @@ typedef enum bolos_ux_e {
 
     BOLOS_UX_EVENT, // tag to be processed by the UX from the serial line
 
+    BOLOS_UX_BOOT, // will never be presented to loaded UX app, this is for
+                   // failsafe UX only
     BOLOS_UX_BOOT_NOT_PERSONALIZED,
     BOLOS_UX_BOOT_RECOVERY,
     BOLOS_UX_BOOT_ONBOARDING,
-    BOLOS_UX_BOOT,
     BOLOS_UX_BOOT_UNSAFE_WIPE,
+    BOLOS_UX_BOOT_UX_NOT_SIGNED,
+    BOLOS_UX_BOLOS_START, // called in before dashboard displays
     BOLOS_UX_DASHBOARD,
+    BOLOS_UX_PROCESSING,
 
     // cleanup screen displayed by the previous ux, useful for
     BOLOS_UX_BLANK_PREVIOUS,
@@ -402,6 +440,7 @@ typedef enum bolos_ux_e {
     BOLOS_UX_CONSENT_APP_ADD,
     BOLOS_UX_CONSENT_APP_DEL,
     BOLOS_UX_CONSENT_APP_UPG,
+    BOLOS_UX_CONSENT_ISSUER_KEY,
     BOLOS_UX_CONSENT_FOREIGN_KEY,
     BOLOS_UX_APPEXIT,
     BOLOS_UX_KEYBOARD,
@@ -449,7 +488,13 @@ typedef struct application_s {
     // has not the ::APPLICATION_AUTOBOOT value.
     unsigned int autoboot_timeout;
 
-    unsigned int seed_derivation_first_level;
+    // icon appearance order in the dashboard, not used so far
+    unsigned int dashboard_order;
+
+#ifdef BOLOS_APP_DERIVE_PATH_SIZE_B
+    unsigned int derive_path_length;
+    unsigned char derive_path[BOLOS_APP_DERIVE_PATH_SIZE_B];
+#endif // BOLOS_APP_DERIVE_PATH_SIZE_B
 
 // for fancy display upon the boot display, \0 terminated.
 #define APPLICATION_NAME_MAXLEN 32
@@ -458,6 +503,12 @@ typedef struct application_s {
     // SHA256 reserved space for the bootloader to store the application's code
     // hash.
     unsigned char hash[32];
+
+#ifdef BOLOS_APP_ICON_SIZE_B
+    unsigned int icon_length; // <total color table + bitmap size>
+    // <BitPerPixel(1byte)> <COLORTABLE((1<<bpp))*4b BE)> <bitmap>
+    unsigned char icon[BOLOS_APP_ICON_SIZE_B];
+#endif // BOLOS_APP_ICON_SIZE_B
 
 } application_t;
 
@@ -470,6 +521,10 @@ typedef struct bolos_ux_params_s {
 
     // structure to overlay parameters for each BOLOS_UX
     union {
+        struct {
+            unsigned int currently_onboarded;
+        } boot_unsafe;
+
         struct {
             unsigned int app_idx;
         } appexitb;
@@ -487,6 +542,10 @@ typedef struct bolos_ux_params_s {
         struct {
             application_t upgrade;
         } upgrade;
+
+        struct {
+            application_t ux_app;
+        } ux_not_signed;
 
         struct {
             cx_ecfp_public_key_t host_pubkey;
@@ -509,6 +568,8 @@ typedef struct bolos_ux_params_s {
 
 // any application can wipe the global pin, global seed, user's keys
 SYSCALL void os_perso_wipe(void);
+/* set_pin can update the pin if the current is validated (tearing leads to
+ * wipe) */
 SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_perso_set_pin(
     unsigned char *pin PLENGTH(length), unsigned int length);
 SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_perso_set_seed(
@@ -524,11 +585,29 @@ SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_perso_finalize(void);
 // unprivilegied
 SYSCALL unsigned int os_perso_isonboarded(void);
 
-// derive a seed on the given BIP32 path
-// TODO : permissioned by application path(s), per application
-SYSCALL void os_perso_derive_seed_bip32(
-    unsigned int *path PLENGTH(4 * pathLength), unsigned int pathLength,
-    unsigned char *privateKey PLENGTH(32), unsigned char *chain PLENGTH(32));
+// derive the user top node on the given BIP32 path
+SYSCALL void os_perso_derive_node_bip32(
+    cx_curve_t curve, unsigned int *path PLENGTH(4 * pathLength),
+    unsigned int pathLength, unsigned char *privateKey PLENGTH(32),
+    unsigned char *chain PLENGTH(32));
+
+// endorsement APIs
+SYSCALL unsigned int
+os_endorsement_get_code_hash(unsigned char *buffer PLENGTH(32));
+SYSCALL unsigned int
+os_endorsement_get_public_key(unsigned char index,
+                              unsigned char *buffer PLENGTH(65));
+SYSCALL unsigned int os_endorsement_get_public_key_certificate(
+    unsigned char index,
+    unsigned char *buffer PLENGTH(1 + 1 + 2 * (1 + 1 + 33)));
+SYSCALL unsigned int
+os_endorsement_key1_get_app_secret(unsigned char *buffer PLENGTH(64));
+SYSCALL unsigned int os_endorsement_key1_sign_data(
+    unsigned char *src PLENGTH(srcLength), unsigned int srcLength,
+    unsigned char *signature PLENGTH(1 + 1 + 2 * (1 + 1 + 33)));
+SYSCALL unsigned int os_endorsement_key2_derive_sign_data(
+    unsigned char *src PLENGTH(srcLength), unsigned int srcLength,
+    unsigned char *signature PLENGTH(1 + 1 + 2 * (1 + 1 + 33)));
 
 // nvram shared zone access right => MPU opening at application switch, using a
 // flags in the registry
@@ -559,9 +638,11 @@ SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_registry_get(
 void os_sched_init(void);
 void bolos_main(void);
 
-// special constant to request execution of the bolos_ux
-SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_sched_exec(
+// execute the given application index in the registry, this function kills the
+// current task
+TASKSWITCH PERMISSION(APPLICATION_FLAG_BOLOS_UX) unsigned int os_sched_exec(
     unsigned int application_index);
+// exit the current task
 SYSCALL void os_sched_exit(unsigned int exit_code);
 
 // the bolos_ux declares the buffer to be used to store the ux parameter to be
@@ -575,7 +656,7 @@ SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_ux_register(
 // processed by the ux. only io is not processed.
 // when returning !0 the application must send a general status (or continue its
 // command flow)
-SYSCALL unsigned int
+TASKSWITCH unsigned int
 os_ux(bolos_ux_params_t *params PLENGTH(sizeof(bolos_ux_params_t)));
 
 // process all possible messages while waiting for a ux to finish,
@@ -608,6 +689,39 @@ io_usb_hid_receive(io_send_t sndfct, unsigned char *buffer, unsigned short l);
 
 unsigned short io_usb_hid_exchange(io_send_t sndfct, unsigned short sndlength,
                                    io_recv_t rcvfct, unsigned char flags);
+
+/* ----------------------------------------------------------------------- */
+/* -                            ID FUNCTIONS                             - */
+/* ----------------------------------------------------------------------- */
+#define OS_FLAG_RECOVERY 1
+#define OS_FLAG_SIGNED_MCU_CODE 2
+//#define OS_FLAG_CUSTOM_UX       4
+/* Enable application to retrieve OS current running options */
+SYSCALL unsigned int os_flags(void);
+SYSCALL unsigned int os_version(unsigned char *version, unsigned int maxlength);
+/* Grab the SEPROXYHAL's feature set */
+SYSCALL unsigned int os_seph_features(void);
+/* Grab the SEPROXYHAL's version */
+SYSCALL unsigned int os_seph_version(unsigned char *version,
+                                     unsigned int maxlength);
+
+/*
+ * Copy the serial number in the given buffer and return its length
+ */
+unsigned int os_get_sn(unsigned char *buffer);
+
+/* ----------------------------------------------------------------------- */
+/* -                         SETTINGS FUNCTIONS                          - */
+/* ----------------------------------------------------------------------- */
+typedef enum os_setting_e {
+    OS_SETTING_BRIGHTNESS,
+    OS_SETTING_INVERT,
+    OS_SETTING_ROTATION,
+
+    OS_SETTING_LAST, //
+} os_setting_t;
+SYSCALL unsigned int os_setting_get(unsigned int setting_id);
+SYSCALL void os_setting_set(unsigned int setting_id, unsigned int value);
 
 /* ----------------------------------------------------------------------- */
 /* -                          DEBUG FUNCTIONS                           - */

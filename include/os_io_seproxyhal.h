@@ -1,5 +1,5 @@
 /*******************************************************************************
-*   Ledger Blue - secure firmware
+*   Ledger Nano S - Secure firmware
 *   (c) 2016 Ledger
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,95 +22,7 @@
 
 #ifdef OS_IO_SEPROXYHAL
 
-#define BLE_CMD_APDU 0x05
-#define BLE_CHUNK_LENGTH 20
-#define M24SR_CHUNK_LENGTH 0xF6
-
-// EVENTS
-#define SEPROXYHAL_TAG_SESSION_START_EVENT 0x01
-#define SEPROXYHAL_TAG_SESSION_START_EVENT_REQBLE 0x01
-#define SEPROXYHAL_TAG_SESSION_START_EVENT_RECOVERY 0x02
-#define SEPROXYHAL_TAG_BLE_PAIRING_ATTEMPT_EVENT 0x02
-#define SEPROXYHAL_TAG_BLE_WRITE_REQUEST_EVENT 0x03
-#define SEPROXYHAL_TAG_BLE_READ_REQUEST_EVENT 0x04
-#define SEPROXYHAL_TAG_BUTTON_PUSH_EVENT 0x05
-#define SEPROXYHAL_TAG_NFC_FIELD_DETECTION_EVENT 0x06
-#define SEPROXYHAL_TAG_NFC_APDU_RECEIVED_EVENT 0x07
-#define SEPROXYHAL_TAG_BATTERY_NOTIFICATION_EVENT 0x08
-#define SEPROXYHAL_TAG_M24SR_GPO_CHANGE_EVENT 0x09
-#define SEPROXYHAL_TAG_M24SR_RESPONSE_APDU_EVENT 0x0A
-#define SEPROXYHAL_TAG_BLE_NOTIFY_INDICATE_EVENT 0x0B
-#define SEPROXYHAL_TAG_FINGER_EVENT 0x0C
-#define SEPROXYHAL_TAG_FINGER_EVENT_TOUCH 0x01
-#define SEPROXYHAL_TAG_FINGER_EVENT_RELEASE 0x02
-#define SEPROXYHAL_TAG_DISPLAY_PROCESSED_EVENT 0x0D
-#define SEPROXYHAL_TAG_TICKER_EVENT 0x0E
-#define SEPROXYHAL_TAG_USB_EVENT 0x0F // <connect/disconnect/suspend/resume>
-#define SEPROXYHAL_TAG_USB_EVENT_RESET 0x01
-#define SEPROXYHAL_TAG_USB_EVENT_SOF 0x02
-#define SEPROXYHAL_TAG_USB_EVENT_SUSPENDED 0x04
-#define SEPROXYHAL_TAG_USB_EVENT_RESUMED 0x08
-#define SEPROXYHAL_TAG_USB_EP_XFER_EVENT                                       \
-    0x10 // <epnum> <xferin/xferout/xfersetup> <datalength> <data>
-#define SEPROXYHAL_TAG_USB_EP_XFER_SETUP 0x01
-#define SEPROXYHAL_TAG_USB_EP_XFER_IN 0x02
-#define SEPROXYHAL_TAG_USB_EP_XFER_OUT 0x04
-#define SEPROXYHAL_TAG_BLE_CONNECTION_EVENT                                    \
-    0x11 // <connected(1)|disconnected(0)>
-#define SEPROXYHAL_TAG_UNSEC_CHUNK_EVENT 0x12
-#define SEPROXYHAL_TAG_ACK_LINK_SPEED                                          \
-    0x13 // <mhz(1byte)> <etu(1byte)> <ack=1|nack=0 (1byte)>
-
-// COMMANDS
-#define SEPROXYHAL_TAG_GO_BOOTLOADER 0x31
-#define SEPROXYHAL_TAG_UNSEC_CHUNK_READ 0x32 // <chunklen2BE> <reset(1|0)>
-#define SEPROXYHAL_TAG_BLE_DEFINE_GENERIC_SETTING 0x41
-#define SEPROXYHAL_TAG_BLE_DEFINE_SERVICE_SETTING 0x42
-#define SEPROXYHAL_TAG_NFC_DEFINE_SERVICE_SETTING 0x43
-#define SEPROXYHAL_TAG_BLE_RADIO_POWER 0x44
-#define SEPROXYHAL_TAG_NFC_RADIO_POWER 0x45
-#define SEPROXYHAL_TAG_SE_POWER_OFF 0x46
-#define SEPROXYHAL_TAG_SCREEN_POWER 0x47
-#define SEPROXYHAL_TAG_BLE_NOTIFY_INDICATE 0x48
-#define SEPROXYHAL_TAG_BATTERY_LEVEL 0x49
-#define SEPROXYHAL_TAG_SCREEN_DISPLAY 0x4A // wait for display_event after sent
-#define SEPROXYHAL_TAG_DEVICE_OFF 0x4B
-#define SEPROXYHAL_TAG_MORE_TIME 0x4C
-#define SEPROXYHAL_TAG_M24SR_C_APDU 0x4D
-#define SEPROXYHAL_TAG_SET_TICKER_INTERVAL 0x4E
-#define SEPROXYHAL_TAG_USB_CONFIG                                              \
-    0x4F // <connect/disconnect> <nbendpoints> [<epaddr>
-         // <eptype:control/interrupt/bulk/isochrone/disabled> <epmps>]
-#define SEPROXYHAL_TAG_USB_CONFIG_CONNECT 0x01
-#define SEPROXYHAL_TAG_USB_CONFIG_DISCONNECT 0x02
-#define SEPROXYHAL_TAG_USB_CONFIG_ADDR 0x03
-#define SEPROXYHAL_TAG_USB_CONFIG_ENDPOINTS 0x04
-#define SEPROXYHAL_TAG_USB_CONFIG_TYPE_DISABLED 0x00
-#define SEPROXYHAL_TAG_USB_CONFIG_TYPE_CONTROL 0x01
-#define SEPROXYHAL_TAG_USB_CONFIG_TYPE_INTERRUPT 0x02
-#define SEPROXYHAL_TAG_USB_CONFIG_TYPE_BULK 0x03
-#define SEPROXYHAL_TAG_USB_CONFIG_TYPE_ISOCHRONOUS 0x04
-#define SEPROXYHAL_TAG_USB_EP_PREPARE                                          \
-    0x50 // <epnum> <direction:setup/in/out/stall/unstall> <expected_length>
-         // <data>
-#define SEPROXYHAL_TAG_USB_EP_PREPARE_DIR_SETUP 0x10
-#define SEPROXYHAL_TAG_USB_EP_PREPARE_DIR_IN 0x20
-#define SEPROXYHAL_TAG_USB_EP_PREPARE_DIR_OUT 0x30
-#define SEPROXYHAL_TAG_USB_EP_PREPARE_DIR_STALL 0x40
-#define SEPROXYHAL_TAG_USB_EP_PREPARE_DIR_UNSTALL 0x80
-
-// STATUS
-#define SEPROXYHAL_TAG_GENERAL_STATUS 0x60
-#define SEPROXYHAL_TAG_GENERAL_STATUS_LAST_COMMAND 0x0000
-#define SEPROXYHAL_TAG_GENERAL_STATUS_MORE_COMMAND 0x0001
-#define SEPROXYHAL_TAG_GENERAL_STATUS_ERROR 0x0002
-#define SEPROXYHAL_TAG_PAIRING_STATUS 0x61
-#define SEPROXYHAL_TAG_BLE_READ_RESPONSE_STATUS 0x62
-#define SEPROXYHAL_TAG_NFC_READ_RESPONSE_STATUS 0x63
-#define SEPROXYHAL_TAG_BLE_NOTIFY_INDICATE_STATUS 0x64
-#define SEPROXYHAL_TAG_SCREEN_DISPLAY_STATUS 0x65
-#define SEPROXYHAL_TAG_PRINTF_STATUS 0x66
-#define SEPROXYHAL_TAG_SET_LINK_SPEED 0x67 // <mhz(1byte)> <etu(1byte)>
+#include "seproxyhal_protocol.h"
 
 #ifdef HAVE_BAGL
 #include "bagl.h"
@@ -148,8 +60,21 @@ void io_seproxyhal_touch_element_callback(
 void io_seproxyhal_touch_callback(const bagl_element_t *element,
                                   unsigned char event);
 
+typedef unsigned int (*button_push_callback_t)(
+    unsigned int button_mask, unsigned int button_mask_counter);
+#define BUTTON_LEFT 1
+#define BUTTON_RIGHT 2
+#define BUTTON_EVT_RELEASED 0x80000000UL
+void io_seproxyhal_button_push(button_push_callback_t button_push_callback,
+                               unsigned int new_button_mask);
+
 // hal point (if application has to reprocess elements)
 void io_seproxyhal_display(const bagl_element_t *element);
+
+// Helper function that give a realistic timing of scrolling for label with text
+// larger than screen
+unsigned int bagl_label_roundtrip_duration_ms(const bagl_element_t *e,
+                                              unsigned int average_char_width);
 
 // default version to be called by ::io_seproxyhal_display if nothing to be done
 // by the application
@@ -158,8 +83,13 @@ void io_seproxyhal_display_default(bagl_element_t *element);
 
 extern unsigned char G_io_seproxyhal_spi_buffer[IO_SEPROXYHAL_BUFFER_SIZE_B];
 
-SYSCALL void io_seproxyhal_spi_send(unsigned char *buffer PLENGTH(length),
+SYSCALL void io_seproxyhal_spi_send(const unsigned char *buffer PLENGTH(length),
                                     unsigned short length);
+
+// return 1 if the previous seproxyhal exchange has been terminated with a
+// status (packet which starts with 011x xxxx)
+// else 0, which means the exchange needs to be closed.
+SYSCALL unsigned int io_seproxyhal_spi_is_status_sent(void);
 
 // not to be called by application (application is triggered using io_event
 // instead), resered for seproxyhal
@@ -170,9 +100,13 @@ io_seproxyhal_spi_recv(unsigned char *buffer PLENGTH(maxlength),
 
 // HAL init, not meant to be called by applications, which shall call
 // ::io_seproxyhal_init instead
-SYSCALL void io_seproxyhal_spi_init(void);
+void io_seproxyhal_spi_init(void);
 
+// init all (io/ux/etc)
 void io_seproxyhal_init(void);
+
+// only reinit ux related globals
+void io_seproxyhal_init_ux(void);
 
 // delegate function for generic io_exchange
 unsigned short io_exchange_al(unsigned char channel_and_flags,
@@ -181,8 +115,12 @@ unsigned short io_exchange_al(unsigned char channel_and_flags,
 // for delegation of Native NFC / USB
 unsigned char io_event(unsigned char channel);
 
+void BLE_power(unsigned char powered, const char *discovered_name);
+void USB_power(unsigned char enabled);
+
 void io_seproxyhal_handle_usb_event(void);
 void io_seproxyhal_handle_usb_ep_xfer_event(void);
+uint16_t io_seproxyhal_get_ep_rx_size(uint8_t epnum);
 
 // process event for io protocols when waiting for a ux operation to end
 // return 1 when event replied, 0 else
@@ -207,15 +145,28 @@ typedef enum {
     APDU_USB_HID,
 } io_apdu_state_e;
 
-extern volatile io_apdu_state_e io_apdu_state; // by default
-
-extern volatile unsigned short io_apdu_offset; // total length already received
-extern volatile unsigned short io_apdu_length; // total length to be received
-extern volatile unsigned short io_apdu_seq;
+extern volatile io_apdu_state_e G_io_apdu_state; // by default
+extern volatile unsigned short
+    G_io_apdu_offset; // total length already received
+extern volatile unsigned short G_io_apdu_length; // total length to be received
+extern volatile unsigned short G_io_apdu_seq;
+extern volatile io_apdu_media_t G_io_apdu_media;
 
 #ifdef HAVE_USB
 extern unsigned int usb_ep_xfer_len[7];
 #endif // HAVE_USB
+
+#ifdef HAVE_BLE_APDU
+void BLE_protocol_recv(unsigned char data_length, unsigned char *att_data);
+
+#define BLE_protocol_send_RET_OK 0
+#define BLE_protocol_send_RET_BUSY 1
+#define BLE_protocol_send_RET_ABORTED 2
+// TODO ensure not being stuck in case disconnect or timeout during reply.
+// add a timeout for reply operation
+char BLE_protocol_send(unsigned char *response_apdu,
+                       unsigned short response_apdu_length);
+#endif // HAVE_BLE_APDU
 
 /**
  *  Ledger Bluetooth Low Energy APDU Protocol
@@ -266,6 +217,67 @@ extern unsigned int usb_ep_xfer_len[7];
  *     0500012425262728292a2b2c2d2e2f3031323334
  *     050002359000
  */
+
+/**
+ * Common structure for applications to perform asynchronous UX aside IO
+ * operations
+ */
+typedef struct ux_state_s {
+    const bagl_element_t *elements;
+    unsigned int elements_count;
+    unsigned int
+        elements_current; // currently displayed UI element in a set of elements
+    bagl_element_callback_t
+        elements_preprocessor; // called before an element is displayed
+    button_push_callback_t button_push_handler;
+} ux_state_t;
+extern ux_state_t ux;
+
+#define UX_INIT() os_memset(&ux, 0, sizeof(ux));
+
+#define UX_DISPLAY(elements_array, preprocessor)                               \
+    ux.elements = elements_array;                                              \
+    ux.elements_count = sizeof(elements_array) / sizeof(elements_array[0]);    \
+    ux.elements_current = 1;                                                   \
+    ux.button_push_handler = elements_array##_button;                          \
+    ux.elements_preprocessor = preprocessor;                                   \
+    if (!ux.elements_preprocessor ||                                           \
+        ux.elements_preprocessor(&elements_array[0])) {                        \
+        io_seproxyhal_display(&elements_array[0]);                             \
+    }
+
+#define UX_REDISPLAY()                                                         \
+    ux.elements_current = 1;                                                   \
+    if (!ux.elements_preprocessor ||                                           \
+        ux.elements_preprocessor(&ux.elements[0])) {                           \
+        io_seproxyhal_display(&ux.elements[0]);                                \
+    }
+
+#define UX_DISPLAYED() (ux.elements_current >= ux.elements_count)
+
+#define UX_DISPLAY_PROCESSED_EVENT()                                           \
+    while (ux.elements_current < ux.elements_count) {                          \
+        if (!ux.elements_preprocessor ||                                       \
+            ux.elements_preprocessor(&ux.elements[ux.elements_current])) {     \
+            io_seproxyhal_display(&ux.elements[ux.elements_current++]);        \
+            break;                                                             \
+        }                                                                      \
+        ux.elements_current++;                                                 \
+    }
+
+#define UX_BUTTON_PUSH_EVENT(seph_packet)                                      \
+    if (ux.button_push_handler) {                                              \
+        io_seproxyhal_button_push(ux.button_push_handler,                      \
+                                  seph_packet[3] >> 1);                        \
+    }
+
+#define UX_FINGER_EVENT(seph_packet)                                           \
+    io_seproxyhal_touch(ux.elements, ux.elements_count,                        \
+                        (seph_packet[4] << 8) | (seph_packet[5] & 0xFF),       \
+                        (seph_packet[6] << 8) | (seph_packet[7] & 0xFF),       \
+                        seph_packet[3]);
+
+void io_seproxyhal_setup_ticker(unsigned int interval_ms);
 
 #endif // OS_IO_SEPROXYHAL
 
