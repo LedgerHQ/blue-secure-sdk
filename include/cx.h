@@ -1,6 +1,6 @@
 /*******************************************************************************
-*   Ledger Nano S - Secure firmware
-*   (c) 2016 Ledger
+*   Ledger Blue - Secure firmware
+*   (c) 2016, 2017 Ledger
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -61,38 +61,41 @@ typedef unsigned long long uint64bits_t;
  *
  * encoding:
  * ---------
- *  | bit pos   |  H constant        |   meanings
- *  ---------------------------------------------------
- *  |  0        |  CX_LAST           | last block
- *  |           |                    |
+ *  | bit pos   |  H constant                |   meanings
+ *  -------------------------------------------------------------------
+ *  |  0        |  CX_LAST                   | last block
+ *  |           |                            |
  *
- *  |  2:1      |  CX_ENCRYPT        |
- *  |           |  CX_DECRYPT        |
- *  |           |  CX_SIGN           |
- *  |           |  CX_VERIFY         |
+ *  |  2:1      |  CX_ENCRYPT                |
+ *  |           |  CX_DECRYPT                |
+ *  |           |  CX_SIGN                   |
+ *  |           |  CX_VERIFY                 |
  *
- *  |  5:3      |  CX_PAD_NONE       |
- *  |           |  CX_PAD_ISO9797M1  |
- *  |           |  CX_PAD_ISO9797M2  |
- *  |           |  CX_PAD_PKCS1_1o5  |
- *  |           |  CX_PAD_PKCS1_PSS  |
- *  |           |  CX_PAD_PKCS1_OAEP |
+ *  |  5:3      |  CX_PAD_NONE               |
+ *  |           |  CX_PAD_ISO9797M1          |
+ *  |           |  CX_PAD_ISO9797M2          |
+ *  |           |  CX_PAD_PKCS1_1o5          |
+ *  |           |  CX_PAD_PKCS1_PSS          |
+ *  |           |  CX_PAD_PKCS1_OAEP         |
  *
- *  |  8:6      |  CX_CHAIN_ECB      |
- *  |           |  CX_CHAIN_CBC      |
- *  |           |  CX_CHAIN_CTR      |
- *  |           |  CX_CHAIN_CFB      |
- *  |           |  CX_CHAIN_OFB      |
+ *  |  8:6      |  CX_CHAIN_ECB              |
+ *  |           |  CX_CHAIN_CBC              |
+ *  |           |  CX_CHAIN_CTR              |
+ *  |           |  CX_CHAIN_CFB              |
+ *  |           |  CX_CHAIN_OFB              |
  *
- *  |  11:9     |  CX_RND_TRNG       |
- *              |  CX_RND_RFC6979    |
+ *  |  11:9     |  CX_RND_TRNG               |
+                |  CX_RND_PRNG               |
+ *              |  CX_RND_RFC6979            |
+ *              |  CX_RND_PROVIDED           |
  *
- *  |  14:12    |  CX_ECDH_POINT     | share full point
- *  |           |  CX_ECDH_X         | share only x coordinate
- *  |           |  CX_ECDH_HASHED    | return a sha256 of the x coordinate
- *  |           |  CX_ECSCHNORR_XY   | Use X,Y coordinate when computing
- signature (ISO 14888)
- *  |           |                    | Use X only if not set (BSI TR 03111)
+ *  |  14:12    |  CX_ECDH_POINT             | share full point
+ *  |           |  CX_ECDH_X                 | share only x coordinate
+ *  |           |  CX_ECSCHNORR_BSI03111     |
+ *  |           |  CX_ECSCHNORR_ISO14888_XY  |
+ *  |           |  CX_ECSCHNORR_ISO14888_X   |
+ *  |           |  CX_ECSCHNORR_LIBSECP      |
+ *
  *
  *  |  15        | CX_NO_REINIT      | do not reinitialize context on CX_LAST
  when supported
@@ -145,6 +148,7 @@ typedef unsigned long long uint64bits_t;
 #define CX_RND_PRNG (1 << 9)
 #define CX_RND_TRNG (2 << 9)
 #define CX_RND_RFC6979 (3 << 9)
+#define CX_RND_PROVIDED (4 << 9)
 
 /**
  * Bit 14:12
@@ -152,10 +156,10 @@ typedef unsigned long long uint64bits_t;
 #define CX_MASK_EC (7 << 12)
 #define CX_ECDH_POINT (1 << 12)
 #define CX_ECDH_X (2 << 12)
-#define CX_ECSCHNORR_ISO14888_XY (1 << 12)
-#define CX_ECSCHNORR_ISO14888_X (2 << 12)
-#define CX_ECSCHNORR_BSI03111 (3 << 12)
-#define CX_ECSCHNORR_LIBSECP (4 << 12)
+#define CX_ECSCHNORR_ISO14888_XY (3 << 12)
+#define CX_ECSCHNORR_ISO14888_X (4 << 12)
+#define CX_ECSCHNORR_BSI03111 (5 << 12)
+#define CX_ECSCHNORR_LIBSECP (6 << 12)
 
 /**
  * Bit 15
@@ -193,13 +197,13 @@ SYSCALL unsigned char *cx_rng(unsigned char *buffer PLENGTH(len),
 enum cx_md_e {
     CX_NONE,
     CX_RIPEMD160, // 20 bytes
-    CX_SHA224, // 28 bytes
-    CX_SHA256, // 32 bytes
-    CX_SHA384, // 48 bytes
-    CX_SHA512, // 64 bytes
-    CX_KECCAK, // 28,32,48,64 bytes
-    CX_SHA3, // 28,32,48,64 bytes
-    CX_SHA3_XOF, // any bytes
+    CX_SHA224,    // 28 bytes
+    CX_SHA256,    // 32 bytes
+    CX_SHA384,    // 48 bytes
+    CX_SHA512,    // 64 bytes
+    CX_KECCAK,    // 28,32,48,64 bytes
+    CX_SHA3,      // 28,32,48,64 bytes
+    CX_SHA3_XOF,  // any bytes
 };
 typedef enum cx_md_e cx_md_t;
 
@@ -288,7 +292,27 @@ cx_ripemd160_init(cx_ripemd160_t *hash PLENGTH(sizeof(cx_ripemd160_t)));
  *
  * @return algorithm identifier
  */
+SYSCALL int cx_sha224_init(cx_sha256_t *hash PLENGTH(sizeof(cx_sha256_t)));
+
+/**
+ * Init a sha256 context.
+ *
+ * @param [out] hash the context to init.
+ *    The context shall be in RAM
+ *
+ * @return algorithm identifier
+ */
 SYSCALL int cx_sha256_init(cx_sha256_t *hash PLENGTH(sizeof(cx_sha256_t)));
+
+/**
+ * Init a sha512 context.
+ *
+ * @param [out] hash the context to init.
+ *    The context shall be in RAM
+ *
+ * @return algorithm identifier
+ */
+SYSCALL int cx_sha384_init(cx_sha512_t *hash PLENGTH(sizeof(cx_sha512_t)));
 
 /**
  * Init a sha512 context.
@@ -603,35 +627,38 @@ SYSCALL int cx_hmac_sha256(unsigned char WIDE *key PLENGTH(key_len),
                            unsigned char WIDE *in PLENGTH(len),
                            unsigned int len, unsigned char *out PLENGTH(32));
 
-//#ifdef CX_PBKDF2
 /* ======================================================================= */
 /*                                  PKDF2                                  */
 /* ======================================================================= */
 
 /**
+ * Compute pbkdf2 bytes sequence as specified by RFC 2898.
+ * The undelying hash function is SHA512
+ *
  * @param [in]  password
- *    password
+ *    The hmac key
  * @param [in]  passwordlen
- *    password len
+ *    The hmac key bytes length
  * @param [in]  salt
- *    salt
+ *    The initial salt.
+ *    The last four bytes muste be zero and are modified and internally used
+ *    by the function.
  * @param [in]  saltlen
- *    salt value
+ *    The salt key bytes length, last four zero bytes included.
  * @param [in]  iterations
- *    iteration
+ *    Per block iteration.
  * @param [in]  out
- *    where to put result
+ *    Where to put result.
  * @param [in] outLength
- *    how many...
+ *    How many bytes to generate.
  *
  */
-SYSCALL void cx_pbkdf2_sha512(unsigned char *password PLENGTH(passwordlen),
+SYSCALL void cx_pbkdf2_sha512(unsigned char WIDE *password PLENGTH(passwordlen),
                               unsigned short passwordlen,
                               unsigned char *salt PLENGTH(saltlen),
                               unsigned short saltlen, unsigned int iterations,
                               unsigned char *out PLENGTH(outLength),
                               unsigned int outLength);
-//#endif // CX_PBKDF2
 
 /* ####################################################################### */
 /*                               CIPHER/SIGNATURE                          */
@@ -883,7 +910,7 @@ typedef struct cx_rsa_3072_private_key_s cx_rsa_3072_private_key_t;
 /* 4096 bits */
 struct cx_rsa_4096_public_key_s {
     unsigned int size;
-    unsigned char e[512];
+    unsigned char e[4];
     unsigned char n[512];
 };
 struct cx_rsa_4096_private_key_s {
@@ -962,10 +989,24 @@ SYSCALL int cx_rsa_init_private_key(
  *   A rsa public key to generate. The real struct SHALL match the modulus_len
  *
  * @param [out] private_key
- *    A rsa privat key to generate. The real struct SHALL match the modulus_len
+ *   A rsa privat key to generate. The real struct SHALL match the modulus_len
  *
  * @param [in] pub_exponent
- *    public exponent. ZERO means default value: 0x010001 (65337)
+ *   Public exponent. ZERO means default value: 0x010001 (65337). The public
+ * exponent shall be lesser than 0x0FFFFFFF.
+ *   No verification is done on the public exponent value except its range. An
+ * invalid value may throw an error or
+ *   provide unuseable key pair.
+ *
+ * @param [in] externalPQ
+ *   If set to non NULL, it is assumed it contains primes  P and Q. They shall
+ * be modulus_len/2 bytes length
+ *   and store in big endian order. P =  externalPQ[0:modulus_len/2-1], Q =
+ * externalPQ[modulus_len/2 : modulus_len-1]
+ *   There is no verification on provided P and Q,  Invalid values may throw an
+ * error or provide unuseable key pair.
+ *   If set to NULL, new primes P,Q are generated. For RAM saving, externalPQ
+ * may overlay public_key.
  *
  * @return zero
  *
@@ -977,10 +1018,15 @@ SYSCALL int cx_rsa_generate_pair(
                                             modulus_len),
     cx_rsa_private_key_t *private_key PLENGTH(sizeof(cx_rsa_private_key_t) +
                                               2 * modulus_len),
-    unsigned long int pub_exponent);
+    unsigned long int pub_exponent,
+    unsigned char *externalPQ PLENGTH(2 * modulus_len));
 
 /**
  * Sign a hash message signature according to RSA specification.
+ *
+ * When using PSS padding, the salt len is fixed to to hash output.
+ * The MGF1 function is the one descrided in PKCS1 v2.0 specifiction, using the
+ * the same hash algorithm as specified by hashID.
  *
  * @param [in] key
  *   A private RSA key fully inited with 'cx_rsa_init_private_key'
@@ -992,7 +1038,11 @@ SYSCALL int cx_rsa_generate_pair(
  *     - CX_PAD_PKCS1_PSS
  *
  * @param [in] hashID
- *  Hash identifier used to compute the input data. Only sha256 is supported.
+ *  Hash identifier used to compute the input hash. It shall be one of:
+ *    - CX_SHA224
+ *    - CX_SHA256
+ *    - CX_SHA384
+ *    - CX_SHA512
  *
  * @param [in] hash
  *   Input hash data to sign
@@ -1031,7 +1081,11 @@ SYSCALL int cx_rsa_sign(cx_rsa_private_key_t WIDE *key
  *     - CX_PAD_PKCS1_PSS
  *
  * @param [in] hashID
- *  Hash identifier used to compute the input data.
+ *  Hash identifier used to compute the input data.It shall be one of:
+ *    - CX_SHA224
+ *    - CX_SHA256
+ *    - CX_SHA384
+ *    - CX_SHA512
  *
  * @param [in] hash
  *   Input hash data to verify
@@ -1068,8 +1122,11 @@ SYSCALL int cx_rsa_verify(
  *     - CX_PAD_PKCS1_OAEP
  *
  * @param [in] hashID
- *  Hash identifier used to compute the in internal data. Only sha256 is
- * supported.
+ *  Hash identifier to use in OEAP padding. It shall be one of:
+ *    - CX_SHA224
+ *    - CX_SHA256
+ *    - CX_SHA384
+ *    - CX_SHA512
  *
  * @param [in] mesg
  *   Input message data to encrypt
@@ -1105,7 +1162,11 @@ SYSCALL int cx_rsa_encrypt(
  *     - CX_PAD_PKCS1_PSS
  *
  * @param [in] hashID
- *  Hash identifier used to compute the input data.
+ *  Hash identifier to use in OEAP padding. It shall be one of:
+ *    - CX_SHA224
+ *    - CX_SHA256
+ *    - CX_SHA384
+ *    - CX_SHA512
  *
  * @param [in] mesg
  *   Input message to decrypt.
@@ -1135,15 +1196,34 @@ SYSCALL int cx_rsa_decrypt(cx_rsa_private_key_t WIDE *key
 /* ======================================================================= */
 /*                                     ECC                                 */
 /* ======================================================================= */
-/** Only curved defined at compiled time will be supported */
+/** Only curved defined at compiled time will be fully supported */
 
 enum cx_curve_e {
     CX_CURVE_NONE,
-    CX_CURVE_256K1,
-    CX_CURVE_256R1,
-    CX_CURVE_192K1,
-    CX_CURVE_192R1,
+
+    /* --- Type Weierstrass --- */
+    CX_CURVE_WEIERSTRASS_START = 0x20,
+    /* SecP group */
+    CX_CURVE_SECP256K1,
+    CX_CURVE_256K1 = CX_CURVE_SECP256K1,
+    CX_CURVE_SECP256R1,
+    CX_CURVE_256R1 = CX_CURVE_SECP256R1,
+    /*  BrainPool */
+    CX_CURVE_BrainPoolP256R1,
+    CX_CURVE_BrainPoolP256T1,
+    /* NIST */
+    CX_CURVE_NISTP256 = CX_CURVE_SECP256R1,
+    CX_CURVE_WEIERSTRASS_END,
+
+    /* --- Type Twister Edward --- */
+    CX_CURVE_TWISTED_EDWARD_START = 0x40,
     CX_CURVE_Ed25519,
+    CX_CURVE_TWISTED_EDWARD_END,
+
+    /* --- Type Montgomery --- */
+    CX_CURVE_MONTGOMERY_START = 0x60,
+    CX_CURVE_Curve25519,
+    CX_CURVE_MONTGOMERY_END
 };
 typedef enum cx_curve_e cx_curve_t;
 
@@ -1165,7 +1245,7 @@ typedef struct cx_curve_weierstrass_s {
     CX_CURVE_HEADER;
     unsigned char WIDE *a; // Weierstrass a coef
     unsigned char WIDE *b; // Weierstrass b coef
-    int h; // Weierstrass cofactor
+    int h;                 // Weierstrass cofactor
 } cx_curve_weierstrass_t;
 
 /*
@@ -1173,17 +1253,28 @@ typedef struct cx_curve_weierstrass_s {
  */
 typedef struct cx_curve_twisted_edward_t {
     CX_CURVE_HEADER;
-    unsigned char WIDE *a; // T Edward a coef
-    unsigned char WIDE *d; // T Edward d coef
-    unsigned char WIDE *I; // Square root of -1
+    unsigned char WIDE *a;  // T Edward a coef
+    unsigned char WIDE *d;  // T Edward d coef
+    unsigned char WIDE *I;  // Square root of -1
     unsigned char WIDE *Q3; //(q+3)/8
 } cx_curve_twisted_edward_t;
 
+/*
+ * Twisted Edward curve : a*x??+y??=1+d*x??*y??  over F(q)
+ */
+typedef struct cx_curve_montgomery_t {
+    CX_CURVE_HEADER;
+    unsigned char WIDE *a;   // T Edward a coef
+    unsigned char WIDE *b;   // T Edward d coef
+    unsigned char WIDE *A24; //(a + 2) / 4
+    unsigned char WIDE *P1;  //(p-1)/2
+} cx_curve_montgomery_t;
+
 typedef struct cx_curve_domain_s { CX_CURVE_HEADER; } cx_curve_domain_t;
 
+/**
+ */
 cx_curve_domain_t WIDE *cx_ecfp_get_domain(cx_curve_t curve);
-
-extern cx_curve_weierstrass_t const WIDE C_cx_secp256k1;
 
 struct cx_ecfp_public_key_s {
     cx_curve_t curve;
@@ -1216,12 +1307,14 @@ typedef struct cx_ecfp_private_key_s cx_ecfp_private_key_t;
  *
  * @throws INVALID_PARAMETER
  */
-SYSCALL int cx_ecfp_is_valid_point(
-    cx_curve_domain_t WIDE *domain PLENGTH(scc__cx_ecfp_domain_scc__domain),
-    unsigned char WIDE *point PLENGTH(1 + 32 + 32));
+SYSCALL int cx_ecfp_is_valid_point(cx_curve_t curve,
+                                   unsigned char WIDE *point PLENGTH(1 + 32 +
+                                                                     32));
 
 /**
  * Add two affine point
+ *
+ * This routine only support Weierstrass and Twisted edward curve.
  *
  * @param [in] domain
  *   The curve domain parameters to work with.
@@ -1249,8 +1342,7 @@ SYSCALL int cx_ecfp_is_valid_point(
  *
  * @throws INVALID_PARAMETER
  */
-SYSCALL int cx_ecfp_add_point(cx_curve_domain_t WIDE *domain
-                                  PLENGTH(scc__cx_ecfp_domain_scc__domain),
+SYSCALL int cx_ecfp_add_point(cx_curve_t curve,
                               unsigned char *R PLENGTH(1 + 32 + 32),
                               unsigned char WIDE *P PLENGTH(1 + 32 + 32),
                               unsigned char WIDE *Q PLENGTH(1 + 32 + 32));
@@ -1273,7 +1365,7 @@ SYSCALL int cx_ecfp_add_point(cx_curve_domain_t WIDE *domain
  *   the curve size.
  *
  * @param [in] k
- *   scalar to multiply
+ *   scalar to multiply, encoded as big endian integer
  *
  * @param [in] k_len
  *   byte length of scalar to multiply
@@ -1284,9 +1376,10 @@ SYSCALL int cx_ecfp_add_point(cx_curve_domain_t WIDE *domain
  *
  * @throws INVALID_PARAMETER
  */
-SYSCALL int cx_ecfp_scalar_mult(
-    cx_curve_domain_t WIDE *domain PLENGTH(scc__cx_ecfp_domain_scc__domain),
-    unsigned char *P, unsigned char WIDE *k PLENGTH(k_len), unsigned int k_len);
+SYSCALL int cx_ecfp_scalar_mult(cx_curve_t curve,
+                                unsigned char *P PLENGTH(1 + 32 + 32),
+                                unsigned char WIDE *k PLENGTH(k_len),
+                                unsigned int k_len);
 
 /**
  * Initialize a public ECFP Key.
@@ -1301,9 +1394,13 @@ SYSCALL int cx_ecfp_scalar_mult(
  *
  * @param [in] rawkey
  *   Raw key value or NULL.
- *   The value shall be the public point encoded as: 04 x y, where x and y are
- *   encoded as  big endian raw value and have bits length equals to
- *   the curve size.
+ *   The value shall be the public point encoded as:
+ *     - '04 x y' for Weiertrass curve
+ *     - '04 x y'  or '02 y' (plus sign) for twisted Edward curves
+ *     - '04 x y'  or '02 x' for Montgomery curves
+ *    where x and y are encoded as big endian raw value and have bits length
+ *    equals to the curve size. Any specific integer decoding from binary,
+ *    such as specified in RFC7748 and RFC eddsa-draft, is up to caller.
  *
  * @param [in] key_len
  *   Key bytes lenght
@@ -1318,6 +1415,7 @@ SYSCALL int cx_ecfp_scalar_mult(
  *
  * @throws INVALID_PARAMETER
  */
+
 SYSCALL int cx_ecfp_init_public_key(
     cx_curve_t curve, unsigned char WIDE *rawkey PLENGTH(key_len),
     unsigned int key_len,
@@ -1373,7 +1471,7 @@ SYSCALL int cx_ecfp_init_private_key(
  *       if the 'keep_private' parameter is non zero
  *     - else a new private key is generated.
  *
- * @param [in] keep_private if set to non zero, keep the private key value if
+ * @param [in] keepprivate if set to non zero, keep the private key value if
  * set.
  *             Else generate a new random one
  *
@@ -1389,6 +1487,9 @@ SYSCALL int cx_ecfp_generate_pair(
     int keepprivate);
 
 /* =========================== Borromean ================================== */
+/**
+ * Experimental
+ */
 SYSCALL int cx_borromean_sign(
     cx_ecfp_private_key_t **privkeys, cx_ecfp_public_key_t **pubkeys,
     unsigned int *rsizes
@@ -1397,7 +1498,9 @@ SYSCALL int cx_borromean_sign(
     unsigned int rcount, unsigned int mode, cx_md_t hashID,
     unsigned char WIDE *msg PLENGTH(msg_len), unsigned int msg_len,
     unsigned char *sig);
-
+/**
+ * Experimental
+ */
 SYSCALL int cx_borromean_verify(
     cx_ecfp_public_key_t **pubkeys,
     unsigned int *rsizes
@@ -1481,7 +1584,6 @@ SYSCALL int cx_ecschnorr_verify(cx_ecfp_public_key_t WIDE *pukey
                                 unsigned int sig_len);
 
 /* ============================= EdDSA =================================== */
-//#ifdef CX_EDDSA
 
 /**
  *  Compress point according to draft-irtf-cfrg-eddsa-05.
@@ -1489,10 +1591,8 @@ SYSCALL int cx_ecschnorr_verify(cx_ecfp_public_key_t WIDE *pukey
  * @param [in]     domain
  * @param [in/out] P
  */
-SYSCALL void
-cx_edward_compress_point(cx_curve_twisted_edward_t WIDE *domain
-                             PLENGTH(scc__cx_ecfp_domain_scc__domain),
-                         unsigned char *P PLENGTH(65));
+SYSCALL void cx_edward_compress_point(cx_curve_t curve,
+                                      unsigned char *P PLENGTH(65));
 
 /**
  *  Decompress point according to draft-irtf-cfrg-eddsa-05.
@@ -1500,22 +1600,8 @@ cx_edward_compress_point(cx_curve_twisted_edward_t WIDE *domain
  * @param [in]     domain
  * @param [in/out] P
  */
-SYSCALL void
-cx_edward_decompress_point(cx_curve_twisted_edward_t WIDE *domain
-                               PLENGTH(scc__cx_ecfp_domain_scc__domain),
-                           unsigned char *P PLENGTH(65));
-
-/**
- * Retrieve the public key from the private one according to
- * draft-irtf-cfrg-eddsa-05.
- *
- * @param [in]  pvkey
- * @param [out] pukey
- */
-SYSCALL void cx_eddsa_get_public_key(
-    cx_ecfp_private_key_t WIDE *pvkey
-        PLENGTH(scc__cx_ecfp_private_key_scc__pvkey),
-    cx_ecfp_public_key_t *pukey PLENGTH(scc__cx_ecfp_public_key_scc__pukey));
+SYSCALL void cx_edward_decompress_point(cx_curve_t curve,
+                                        unsigned char *P PLENGTH(65));
 
 /**
  * Sign a hash message according to EdDSA specification.
@@ -1596,7 +1682,6 @@ SYSCALL int cx_eddsa_verify(
     int mode, cx_md_t hashID, unsigned char WIDE *hash PLENGTH(hash_len),
     unsigned int hash_len, unsigned char WIDE *sig PLENGTH(sig_len),
     unsigned int sig_len);
-// #endif // CX_EDDSA
 
 /* ============================= ECDSA =================================== */
 
@@ -1866,9 +1951,11 @@ SYSCALL void cx_math_multm(unsigned char *r PLENGTH(len),
  * @param len   byte length of r, a, b, m
  *
  */
-void cx_math_powm(unsigned char *r PLENGTH(len), unsigned char *a PLENGTH(len),
-                  unsigned char WIDE *e PLENGTH(len_e), unsigned int len_e,
-                  unsigned char WIDE *m PLENGTH(len), unsigned int len);
+SYSCALL void cx_math_powm(unsigned char *r PLENGTH(len),
+                          unsigned char *a PLENGTH(len),
+                          unsigned char WIDE *e PLENGTH(len_e),
+                          unsigned int len_e,
+                          unsigned char WIDE *m PLENGTH(len), unsigned int len);
 
 /**
  * Reduce in place (left zero padded) the given value: v = v mod m

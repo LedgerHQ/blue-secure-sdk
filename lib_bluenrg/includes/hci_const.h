@@ -16,7 +16,8 @@
 #include "link_layer.h"
 #include "hci.h"
 
-#define DEFAULT_TIMEOUT (CLOCK_SECOND/10)
+//#define DEFAULT_TIMEOUT (CLOCK_SECOND/10)
+#define DEFAULT_TIMEOUT 20 // at most 10 events consumed to consider timeout
 
 /**
  * Maximum payload of HCI commands that can be sent. Change this value if needed.

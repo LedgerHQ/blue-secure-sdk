@@ -1,6 +1,6 @@
 /*******************************************************************************
 *   Ledger Blue - Non secure firmware
-*   (c) 2016 Ledger
+*   (c) 2016, 2017 Ledger
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -77,7 +77,7 @@ volatile struct ble_state_s {
 
 /** @defgroup BlueNRG_Shield_Sample_Application
  *  @brief Sample application for BlueNR // not used for now
-#define THROW(x) for(;;);G Shield on STM32 Nucleo boards.
+#define THROW(x) for(;;); Shield on STM32 Nucleo boards.
  *  @{
  */
 
@@ -94,7 +94,6 @@ volatile struct ble_state_s {
  * Little endian encoding
  */
 const unsigned char SERVER_BDADDR_CONST[] = {0x02, 0x00, 0x00, 0xe7, 0x11, 0x3A};
-const unsigned char DEFAULT_NAME_CONST[] = {AD_TYPE_COMPLETE_LOCAL_NAME, 'L','e','d','g', 'e', 'r', '(', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', ')', '\0'};
 unsigned char SERVER_BDADDR[16];
 unsigned char DEFAULT_NAME[32];
 
@@ -127,15 +126,18 @@ const uint8_t charUuidRX[16] = {0x66,0x9a,0x0c,0x20,0x00,0x08,0x96,0x9e,0xe2,0x1
  */
 
 void BLE_diversify_name_address() {
-  const char hexdigits[] = "0123456789ABCDEF";
+  //const char hexdigits[] = "0123456789ABCDEF";
   uint32_t uid;
   const unsigned int * UID = (unsigned int *)0x00800000;
   uid = UID[0] ^ UID[1];
-  memset(DEFAULT_NAME, 0, sizeof(DEFAULT_NAME)); // ensure no uninit during strlen
+  //memset(DEFAULT_NAME, 0, sizeof(DEFAULT_NAME)); // ensure no uninit during strlen
   memset(SERVER_BDADDR, 0, sizeof(SERVER_BDADDR));
   memcpy(SERVER_BDADDR, SERVER_BDADDR_CONST, sizeof(SERVER_BDADDR_CONST));
-  memcpy(DEFAULT_NAME, DEFAULT_NAME_CONST, sizeof(DEFAULT_NAME_CONST));
+  DEFAULT_NAME[0] = AD_TYPE_COMPLETE_LOCAL_NAME;
+  snprintf(DEFAULT_NAME+1, sizeof(DEFAULT_NAME)-1, "Ledger Blue (%04X)", uid);
 
+  memcpy(&SERVER_BDADDR[0], &uid, 4);
+  /*
   DEFAULT_NAME[sizeof(DEFAULT_NAME_CONST) - 10] = hexdigits[((uid >> 24) & 0xff) >> 4];
   DEFAULT_NAME[sizeof(DEFAULT_NAME_CONST) - 9] = hexdigits[((uid >> 24) & 0xff) & 0x0f];
   DEFAULT_NAME[sizeof(DEFAULT_NAME_CONST) - 8] = hexdigits[((uid >> 16) & 0xff) >> 4];
@@ -144,7 +146,7 @@ void BLE_diversify_name_address() {
   DEFAULT_NAME[sizeof(DEFAULT_NAME_CONST) - 5] = hexdigits[((uid >> 8) & 0xff) & 0x0f];
   DEFAULT_NAME[sizeof(DEFAULT_NAME_CONST) - 4] = hexdigits[(uid & 0xff) >> 4];
   DEFAULT_NAME[sizeof(DEFAULT_NAME_CONST) - 3] = hexdigits[uid & 0x0f];
-  memcpy(&SERVER_BDADDR[0], &uid, 4);
+  */
 }
 
 void BLE_make_discoverable(const char* discovered_name) {
@@ -154,7 +156,7 @@ void BLE_make_discoverable(const char* discovered_name) {
   // TODO limit the time it is done, to go back to sleep in case timeout
   
   if (discovered_name == NULL) {
-    discovered_name = (const char*)DEFAULT_NAME;
+    discovered_name = (const char*)"Ledger Blue";
   }
 
   G_io_ble.last_discovered_name = (unsigned char*)discovered_name;
@@ -166,7 +168,7 @@ void BLE_make_discoverable(const char* discovered_name) {
   }
 
   // set device name
-  const char *name = "Ledger";  
+  const char *name = "Blue";  
   ret = aci_gatt_update_char_value(G_io_ble.gap_service_handle, G_io_ble.gap_dev_name_char_handle, 0, strlen(name), (uint8_t *)name);        
   if(ret){
     PRINTF("aci_gatt_update_char_value device name failed. %d\n", ret);
@@ -729,12 +731,11 @@ void GAP_ConnectionComplete_CB(uint8_t addr[6], uint16_t handle)
 void GAP_DisconnectionComplete_CB(void)
 {
   PRINTF("BLE client disconnected\n");
+  G_io_ble.client_link_established = FALSE;
 
   // prepare reconnection
   BLE_power(0, NULL);
   BLE_power(1, NULL);
-
-  G_io_ble.client_link_established = FALSE;
 }
 
 /**

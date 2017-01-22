@@ -124,6 +124,6 @@ void list_remove_head (tListNode * listHead, tListNode ** node )
 
 void list_remove_tail (tListNode * listHead, tListNode ** node )
 {
-    list_insert_head(listHead, node);
+    list_insert_head(listHead, *node);
 }
 

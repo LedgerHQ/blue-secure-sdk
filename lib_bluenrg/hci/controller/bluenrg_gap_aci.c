@@ -182,7 +182,7 @@ tBleStatus aci_gap_set_discoverable(uint8_t AdvType, uint16_t AdvIntervMin, uint
 {
   struct hci_request rq;
   uint8_t status;    
-  uint8_t buffer[40];
+  uint8_t buffer[100];
   uint8_t indx = 0;
   
   if ((LocalNameLen+ServiceUUIDLen+14UL) > sizeof(buffer))

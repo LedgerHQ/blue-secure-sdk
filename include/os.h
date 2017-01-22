@@ -1,6 +1,6 @@
 /*******************************************************************************
-*   Ledger Nano S - Secure firmware
-*   (c) 2016 Ledger
+*   Ledger Blue - Secure firmware
+*   (c) 2016, 2017 Ledger
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@
 
 #ifndef OS_H
 #define OS_H
+
+#include "bolos_target.h"
 
 /**
  * Quality development guidelines:
@@ -54,11 +56,11 @@ void longjmp(jmp_buf __jmpb, int __retval);
 int setjmp(jmp_buf __jmpb);
 
 #define __MPU_PRESENT 1 // THANKS ST FOR YOUR HARDWORK
-#include <core_sc000.h>
 #include "stddef.h"
 #include "stdint.h"
+#include <core_sc000.h>
 
-#define UNUSED(x) (void) x
+#define UNUSED(x) (void)x
 
 #include "os_apilevel.h"
 
@@ -124,7 +126,10 @@ unsigned int pic(unsigned int linked_address);
 // must be set on one application in the registry which is used
 #define APPLICATION_FLAG_BOLOS_UX 0x8
 
-#define APPLICATION_FLAG_SEED_RAW 0x10
+// application is allowed to use the raw master seed, if not set, at least a
+// level of derivation is required.
+#define APPLICATION_FLAG_DERIVE_MASTER 0x10
+
 #define APPLICATION_FLAG_SHARED_NVRAM 0x20
 #define APPLICATION_FLAG_GLOBAL_PIN 0x40
 
@@ -142,10 +147,16 @@ unsigned int pic(unsigned int linked_address);
 #define APPLICATION_FLAG_AUTOBOOT 0x100
 
 /**
+ * Application is allowed to change the settings
+ */
+#define APPLICATION_FLAG_BOLOS_SETTINGS 0x200
+
+/**
  * Application is disabled (during its upgrade or whatever)
  */
 
-#define APPLICATION_FLAG_DISABLED 0x8000
+//#define APPLICATION_FLAG_DISABLED         0x8000
+#define APPLICATION_FLAG_ENABLED 0x8000
 
 #define APPLICATION_FLAG_NEG_MASK 0xFFFF0000UL
 
@@ -206,18 +217,21 @@ void os_boot();
      ((unsigned long int)(u32) << 24))
 
 REENTRANT(void os_memmove(void *dst, const void WIDE *src,
-                          unsigned short length));
+                          unsigned int length));
 #define os_memcpy os_memmove
 
-void os_memset(void *dst, unsigned char c, unsigned short length);
+void os_memset(void *dst, unsigned char c, unsigned int length);
 
 char os_memcmp(const void WIDE *buf1, const void WIDE *buf2,
-               unsigned short length);
+               unsigned int length);
 
-void os_xor(void *dst, void WIDE *src1, void WIDE *src2, unsigned short length);
+void os_xor(void *dst, void WIDE *src1, void WIDE *src2, unsigned int length);
 
 // patch point, address used to dispatch, no index
 REENTRANT(void patch(void));
+
+// check API level
+SYSCALL void check_api_level(unsigned int apiLevel);
 
 // reset the chip
 SYSCALL REENTRANT(void reset(void));
@@ -378,6 +392,7 @@ SYSCALL void nvm_write(void WIDE *dst_adr PLENGTH(src_len),
 #define EXCEPTION_IO_OVERFLOW 13
 #define EXCEPTION_IO_HEADER 14
 #define EXCEPTION_IO_STATE 15
+#define EXCEPTION_IO_RESET 16
 
 // -----------------------------------------------------------------------
 // - BASIC MATHS
@@ -387,9 +402,12 @@ SYSCALL void nvm_write(void WIDE *dst_adr PLENGTH(src_len),
     ((((hi3)&0xFF) << 24) | (((hi2)&0xFF) << 16) | (((lo1)&0xFF) << 8) |       \
      ((lo0)&0xFF))
 #define U2BE(buf, off) ((((buf)[off] & 0xFF) << 8) | ((buf)[off + 1] & 0xFF))
+#define U2LE(buf, off) ((((buf)[off + 1] & 0xFF) << 8) | ((buf)[off] & 0xFF))
 #define U4BE(buf, off) ((U2BE(buf, off) << 16) | (U2BE(buf, off + 2) & 0xFFFF))
+#define U4LE(buf, off) ((U2LE(buf, off + 2) << 16) | (U2LE(buf, off) & 0xFFFF))
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
+#define IS_POW2(x) (((x) & ((x)-1)) == 0)
 
 #ifdef macro_offsetof
 #define offsetof(type, field) ((unsigned int)&(((type *)NULL)->field))
@@ -417,6 +435,9 @@ typedef enum bolos_ux_e {
         0, // tag to be processed by the UX from the serial line
 
     BOLOS_UX_EVENT, // tag to be processed by the UX from the serial line
+    BOLOS_UX_KEYBOARD,
+    BOLOS_UX_WAKE_UP,
+    BOLOS_UX_STATUS_BAR,
 
     BOLOS_UX_BOOT, // will never be presented to loaded UX app, this is for
                    // failsafe UX only
@@ -429,34 +450,32 @@ typedef enum bolos_ux_e {
     BOLOS_UX_DASHBOARD,
     BOLOS_UX_PROCESSING,
 
-    // cleanup screen displayed by the previous ux, useful for
-    BOLOS_UX_BLANK_PREVIOUS,
-
     BOLOS_UX_LOADER, // display loader screen or advance it
 
     BOLOS_UX_VALIDATE_PIN,
-    BOLOS_UX_WIPED_DEVICE,
+    BOLOS_UX_CHANGE_ALTERNATE_PIN,
     BOLOS_UX_CONSENT_UPGRADE,
     BOLOS_UX_CONSENT_APP_ADD,
     BOLOS_UX_CONSENT_APP_DEL,
     BOLOS_UX_CONSENT_APP_UPG,
     BOLOS_UX_CONSENT_ISSUER_KEY,
     BOLOS_UX_CONSENT_FOREIGN_KEY,
-    BOLOS_UX_APPEXIT,
-    BOLOS_UX_KEYBOARD,
+    BOLOS_UX_CONSENT_GET_DEVICE_NAME,
+    BOLOS_UX_CONSENT_SET_DEVICE_NAME,
 
-    BOLOS_UX_SETTINGS,
-    /*
-    BOLOS_UX_INPUT_TEXT , // how to pass param (title?text?icon?)
-    BOLOS_UX_INPUT_VALUE ,
-    BOLOS_UX_INPUT_YESNO ,
-    BOLOS_UX_INPUT_CONFIRMCANCEL ,
-    */
 } bolos_ux_t;
 
 #define BOLOS_UX_OK 0xB0105011
 #define BOLOS_UX_CANCEL 0xB0105022
 #define BOLOS_UX_ERROR 0xB0105033
+
+/* Value returned by os_ux to notify the application that the processed event
+ * must be discarded and not processed by the application. Generally due to
+ * handling of power management/dim/locking */
+#define BOLOS_UX_IGNORE 0xB0105044
+// a modal has destroyed the display, app needs to redraw its screen
+#define BOLOS_UX_REDRAW 0xB0105055
+// ux has not finished processing yet (not a final status)
 #define BOLOS_UX_CONTINUE 0
 
 /* ----------------------------------------------------------------------- */
@@ -467,9 +486,6 @@ typedef void (*appmain_t)(void);
 
 // application slot description
 typedef struct application_s {
-    // application crc over the application structure
-    unsigned short crc;
-
     // nvram start address for this application (to check overlap when loading,
     // and mpu lock)
     unsigned char *nvram_begin;
@@ -500,6 +516,9 @@ typedef struct application_s {
 #define APPLICATION_NAME_MAXLEN 32
     unsigned char name[APPLICATION_NAME_MAXLEN + 1];
 
+#define APPLICATION_VERSION_MAXLEN 32
+    unsigned char version[APPLICATION_VERSION_MAXLEN + 1];
+
     // SHA256 reserved space for the bootloader to store the application's code
     // hash.
     unsigned char hash[32];
@@ -509,6 +528,10 @@ typedef struct application_s {
     // <BitPerPixel(1byte)> <COLORTABLE((1<<bpp))*4b BE)> <bitmap>
     unsigned char icon[BOLOS_APP_ICON_SIZE_B];
 #endif // BOLOS_APP_ICON_SIZE_B
+#ifdef BOLOS_APP_ICON_OFF_AND_SIZE
+    unsigned int icon_offset;
+    unsigned short icon_length;
+#endif // BOLOS_APP_ICON_OFF_AND_SIZE
 
 } application_t;
 
@@ -530,10 +553,12 @@ typedef struct bolos_ux_params_s {
         } appexitb;
 
         struct {
+            unsigned int app_idx;
             application_t appentry;
         } appdel;
 
         struct {
+            unsigned int app_idx;
             application_t appentry;
         } appadd;
 
@@ -553,7 +578,25 @@ typedef struct bolos_ux_params_s {
 
         struct {
             unsigned int keycode;
+#define BOLOS_UX_MODE_UPPERCASE 0
+#define BOLOS_UX_MODE_LOWERCASE 1
+#define BOLOS_UX_MODE_SYMBOLS 2
+#define BOLOS_UX_MODE_COUNT 3 // number of keyboard modes
+            unsigned int mode;
         } keyboard;
+
+        struct {
+            unsigned int cancellable;
+        } validate_pin;
+
+        struct {
+            unsigned int keycode;
+        } pin_keyboard;
+
+        struct {
+            unsigned int fgcolor;
+            unsigned int bgcolor;
+        } status_bar;
 
         struct {
             unsigned int x;
@@ -572,8 +615,17 @@ SYSCALL void os_perso_wipe(void);
  * wipe) */
 SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_perso_set_pin(
     unsigned char *pin PLENGTH(length), unsigned int length);
+
+#define BOLOS_UX_ONBOARDING_ALGORITHM_BIP39 1
+#define BOLOS_UX_ONBOARDING_ALGORITHM_ELECTRUM 2
+
 SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_perso_set_seed(
-    unsigned char *seed PLENGTH(length), unsigned int length);
+    unsigned int algorithm, unsigned char *seed PLENGTH(length),
+    unsigned int length);
+SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_perso_set_alternate_pin(
+    unsigned char *pin PLENGTH(pinLength), unsigned int pinLength);
+SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_perso_set_alternate_seed(
+    unsigned char *seed PLENGTH(seedLength), unsigned int seedLength);
 SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_perso_set_words(
     unsigned char *words PLENGTH(length), unsigned int length);
 SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_perso_set_devname(
@@ -584,6 +636,11 @@ SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_perso_finalize(void);
 // NBA : could also be checked by applications running in unsecure mode - thus
 // unprivilegied
 SYSCALL unsigned int os_perso_isonboarded(void);
+// NBA : also unprivileged, minor privacy risk as it is set voluntarily by the
+// user
+SYSCALL unsigned int
+os_perso_get_devname(unsigned char *devname PLENGTH(length),
+                     unsigned int length);
 
 // derive the user top node on the given BIP32 path
 SYSCALL void os_perso_derive_node_bip32(
@@ -633,10 +690,6 @@ SYSCALL
 SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_registry_get(
     unsigned int index,
     application_t *out_application_entry PLENGTH(sizeof(application_t)));
-
-// called by bolos initializer before entering bolos ux the first time
-void os_sched_init(void);
-void bolos_main(void);
 
 // execute the given application index in the registry, this function kills the
 // current task
@@ -698,11 +751,12 @@ unsigned short io_usb_hid_exchange(io_send_t sndfct, unsigned short sndlength,
 //#define OS_FLAG_CUSTOM_UX       4
 /* Enable application to retrieve OS current running options */
 SYSCALL unsigned int os_flags(void);
-SYSCALL unsigned int os_version(unsigned char *version, unsigned int maxlength);
+SYSCALL unsigned int os_version(unsigned char *version PLENGTH(maxlength),
+                                unsigned int maxlength);
 /* Grab the SEPROXYHAL's feature set */
 SYSCALL unsigned int os_seph_features(void);
 /* Grab the SEPROXYHAL's version */
-SYSCALL unsigned int os_seph_version(unsigned char *version,
+SYSCALL unsigned int os_seph_version(unsigned char *version PLENGTH(maxlength),
                                      unsigned int maxlength);
 
 /*
@@ -717,11 +771,16 @@ typedef enum os_setting_e {
     OS_SETTING_BRIGHTNESS,
     OS_SETTING_INVERT,
     OS_SETTING_ROTATION,
+    OS_SETTING_SHUFFLE_PIN,
+    OS_SETTING_AUTO_LOCK_DELAY,
+    OS_SETTING_POWER_OFF_DELAY,
 
     OS_SETTING_LAST, //
 } os_setting_t;
-SYSCALL unsigned int os_setting_get(unsigned int setting_id);
-SYSCALL void os_setting_set(unsigned int setting_id, unsigned int value);
+SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_SETTINGS) unsigned int os_setting_get(
+    unsigned int setting_id);
+SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_SETTINGS) void os_setting_set(
+    unsigned int setting_id, unsigned int value);
 
 /* ----------------------------------------------------------------------- */
 /* -                          DEBUG FUNCTIONS                           - */
@@ -731,8 +790,27 @@ void screen_printf(const char *format, ...);
 // emit a single byte
 void screen_printc(unsigned char const c);
 
+// redefined if string.h not included
+int snprintf(char *str, size_t str_size, const char *format, ...);
+
 // syscall test
 // SYSCALL void dummy_1(unsigned int* p PLENGTH(2+len+15+ len + 16 +
 // sizeof(io_send_t) + 1 ), unsigned int len);
+
+typedef struct meminfo_s {
+    unsigned int free_nvram_size;
+    unsigned int appMemory;
+    unsigned int systemSize;
+    unsigned int slots;
+} meminfo_t;
+
+SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_get_memory_info(
+    meminfo_t *meminfo);
+
+#ifdef BOLOS_APP_ICON_OFF_AND_SIZE
+SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) unsigned int os_registry_get_icon(
+    unsigned int appidx, unsigned int offset,
+    unsigned char *buffer PLENGTH(maxlength), unsigned int maxlength);
+#endif // BOLOS_APP_ICON_OFF_AND_SIZE
 
 #endif // OS_H

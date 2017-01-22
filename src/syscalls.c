@@ -1,6 +1,6 @@
 /*******************************************************************************
 *   Ledger Blue - Secure firmware
-*   (c) 2016 Ledger
+*   (c) 2016, 2017 Ledger
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -18,6 +18,23 @@
 /* MACHINE GENERATED: DO NOT MODIFY */
 #include "os.h"
 #include "syscalls.h"
+
+void check_api_level ( unsigned int apiLevel ) 
+{
+  unsigned int ret;
+  unsigned int parameters [2+1];
+  parameters[0] = (unsigned int)SYSCALL_check_api_level_ID_IN;
+  parameters[1] = (unsigned int)G_try_last_open_context->jmp_buf;
+  parameters[2] = (unsigned int)apiLevel;
+
+                              asm volatile("mov r0, %0"::"r"(parameters));
+                              asm volatile("svc #1");
+                              asm volatile("mov %0, r0":"=r"(ret));
+                                if (parameters[0] != SYSCALL_check_api_level_ID_OUT)
+  {
+    THROW(EXCEPTION_SECURITY);
+  }
+}
 
 void reset ( void ) 
 {
@@ -108,6 +125,24 @@ int cx_ripemd160_init ( cx_ripemd160_t * hash )
   return (int)ret;
 }
 
+int cx_sha224_init ( cx_sha256_t * hash ) 
+{
+  unsigned int ret;
+  unsigned int parameters [2+1];
+  parameters[0] = (unsigned int)SYSCALL_cx_sha224_init_ID_IN;
+  parameters[1] = (unsigned int)G_try_last_open_context->jmp_buf;
+  parameters[2] = (unsigned int)hash;
+
+                              asm volatile("mov r0, %0"::"r"(parameters));
+                              asm volatile("svc #1");
+                              asm volatile("mov %0, r0":"=r"(ret));
+                                if (parameters[0] != SYSCALL_cx_sha224_init_ID_OUT)
+  {
+    THROW(EXCEPTION_SECURITY);
+  }
+  return (int)ret;
+}
+
 int cx_sha256_init ( cx_sha256_t * hash ) 
 {
   unsigned int ret;
@@ -120,6 +155,24 @@ int cx_sha256_init ( cx_sha256_t * hash )
                               asm volatile("svc #1");
                               asm volatile("mov %0, r0":"=r"(ret));
                                 if (parameters[0] != SYSCALL_cx_sha256_init_ID_OUT)
+  {
+    THROW(EXCEPTION_SECURITY);
+  }
+  return (int)ret;
+}
+
+int cx_sha384_init ( cx_sha512_t * hash ) 
+{
+  unsigned int ret;
+  unsigned int parameters [2+1];
+  parameters[0] = (unsigned int)SYSCALL_cx_sha384_init_ID_IN;
+  parameters[1] = (unsigned int)G_try_last_open_context->jmp_buf;
+  parameters[2] = (unsigned int)hash;
+
+                              asm volatile("mov r0, %0"::"r"(parameters));
+                              asm volatile("svc #1");
+                              asm volatile("mov %0, r0":"=r"(ret));
+                                if (parameters[0] != SYSCALL_cx_sha384_init_ID_OUT)
   {
     THROW(EXCEPTION_SECURITY);
   }
@@ -585,16 +638,17 @@ int cx_rsa_init_private_key ( unsigned char * exponent, unsigned char * modulus,
   return (int)ret;
 }
 
-int cx_rsa_generate_pair ( unsigned int modulus_len, cx_rsa_public_key_t * public_key, cx_rsa_private_key_t * private_key, unsigned long int pub_exponent ) 
+int cx_rsa_generate_pair ( unsigned int modulus_len, cx_rsa_public_key_t * public_key, cx_rsa_private_key_t * private_key, unsigned long int pub_exponent, unsigned char * externalPQ ) 
 {
   unsigned int ret;
-  unsigned int parameters [2+4];
+  unsigned int parameters [2+5];
   parameters[0] = (unsigned int)SYSCALL_cx_rsa_generate_pair_ID_IN;
   parameters[1] = (unsigned int)G_try_last_open_context->jmp_buf;
   parameters[2] = (unsigned int)modulus_len;
   parameters[3] = (unsigned int)public_key;
   parameters[4] = (unsigned int)private_key;
   parameters[5] = (unsigned int)pub_exponent;
+  parameters[6] = (unsigned int)externalPQ;
 
                               asm volatile("mov r0, %0"::"r"(parameters));
                               asm volatile("svc #1");
@@ -702,13 +756,13 @@ int cx_rsa_decrypt ( cx_rsa_private_key_t * key, int mode, cx_md_t hashID, unsig
   return (int)ret;
 }
 
-int cx_ecfp_is_valid_point ( cx_curve_domain_t * domain, unsigned char * point ) 
+int cx_ecfp_is_valid_point ( cx_curve_t curve, unsigned char * point ) 
 {
   unsigned int ret;
   unsigned int parameters [2+2];
   parameters[0] = (unsigned int)SYSCALL_cx_ecfp_is_valid_point_ID_IN;
   parameters[1] = (unsigned int)G_try_last_open_context->jmp_buf;
-  parameters[2] = (unsigned int)domain;
+  parameters[2] = (unsigned int)curve;
   parameters[3] = (unsigned int)point;
 
                               asm volatile("mov r0, %0"::"r"(parameters));
@@ -721,13 +775,13 @@ int cx_ecfp_is_valid_point ( cx_curve_domain_t * domain, unsigned char * point )
   return (int)ret;
 }
 
-int cx_ecfp_add_point ( cx_curve_domain_t * domain, unsigned char * R, unsigned char * P, unsigned char * Q ) 
+int cx_ecfp_add_point ( cx_curve_t curve, unsigned char * R, unsigned char * P, unsigned char * Q ) 
 {
   unsigned int ret;
   unsigned int parameters [2+4];
   parameters[0] = (unsigned int)SYSCALL_cx_ecfp_add_point_ID_IN;
   parameters[1] = (unsigned int)G_try_last_open_context->jmp_buf;
-  parameters[2] = (unsigned int)domain;
+  parameters[2] = (unsigned int)curve;
   parameters[3] = (unsigned int)R;
   parameters[4] = (unsigned int)P;
   parameters[5] = (unsigned int)Q;
@@ -742,13 +796,13 @@ int cx_ecfp_add_point ( cx_curve_domain_t * domain, unsigned char * R, unsigned 
   return (int)ret;
 }
 
-int cx_ecfp_scalar_mult ( cx_curve_domain_t * domain, unsigned char * P, unsigned char * k, unsigned int k_len ) 
+int cx_ecfp_scalar_mult ( cx_curve_t curve, unsigned char * P, unsigned char * k, unsigned int k_len ) 
 {
   unsigned int ret;
   unsigned int parameters [2+4];
   parameters[0] = (unsigned int)SYSCALL_cx_ecfp_scalar_mult_ID_IN;
   parameters[1] = (unsigned int)G_try_last_open_context->jmp_buf;
-  parameters[2] = (unsigned int)domain;
+  parameters[2] = (unsigned int)curve;
   parameters[3] = (unsigned int)P;
   parameters[4] = (unsigned int)k;
   parameters[5] = (unsigned int)k_len;
@@ -926,13 +980,13 @@ int cx_ecschnorr_verify ( cx_ecfp_public_key_t * pukey, int mode, cx_md_t hashID
   return (int)ret;
 }
 
-void cx_edward_compress_point ( cx_curve_twisted_edward_t * domain, unsigned char * P ) 
+void cx_edward_compress_point ( cx_curve_t curve, unsigned char * P ) 
 {
   unsigned int ret;
   unsigned int parameters [2+2];
   parameters[0] = (unsigned int)SYSCALL_cx_edward_compress_point_ID_IN;
   parameters[1] = (unsigned int)G_try_last_open_context->jmp_buf;
-  parameters[2] = (unsigned int)domain;
+  parameters[2] = (unsigned int)curve;
   parameters[3] = (unsigned int)P;
 
                               asm volatile("mov r0, %0"::"r"(parameters));
@@ -944,37 +998,19 @@ void cx_edward_compress_point ( cx_curve_twisted_edward_t * domain, unsigned cha
   }
 }
 
-void cx_edward_decompress_point ( cx_curve_twisted_edward_t * domain, unsigned char * P ) 
+void cx_edward_decompress_point ( cx_curve_t curve, unsigned char * P ) 
 {
   unsigned int ret;
   unsigned int parameters [2+2];
   parameters[0] = (unsigned int)SYSCALL_cx_edward_decompress_point_ID_IN;
   parameters[1] = (unsigned int)G_try_last_open_context->jmp_buf;
-  parameters[2] = (unsigned int)domain;
+  parameters[2] = (unsigned int)curve;
   parameters[3] = (unsigned int)P;
 
                               asm volatile("mov r0, %0"::"r"(parameters));
                               asm volatile("svc #1");
                               asm volatile("mov %0, r0":"=r"(ret));
                                 if (parameters[0] != SYSCALL_cx_edward_decompress_point_ID_OUT)
-  {
-    THROW(EXCEPTION_SECURITY);
-  }
-}
-
-void cx_eddsa_get_public_key ( cx_ecfp_private_key_t * pvkey, cx_ecfp_public_key_t * pukey ) 
-{
-  unsigned int ret;
-  unsigned int parameters [2+2];
-  parameters[0] = (unsigned int)SYSCALL_cx_eddsa_get_public_key_ID_IN;
-  parameters[1] = (unsigned int)G_try_last_open_context->jmp_buf;
-  parameters[2] = (unsigned int)pvkey;
-  parameters[3] = (unsigned int)pukey;
-
-                              asm volatile("mov r0, %0"::"r"(parameters));
-                              asm volatile("svc #1");
-                              asm volatile("mov %0, r0":"=r"(ret));
-                                if (parameters[0] != SYSCALL_cx_eddsa_get_public_key_ID_OUT)
   {
     THROW(EXCEPTION_SECURITY);
   }
@@ -1299,6 +1335,28 @@ void cx_math_multm ( unsigned char * r, unsigned char * a, unsigned char * b, un
   }
 }
 
+void cx_math_powm ( unsigned char * r, unsigned char * a, unsigned char * e, unsigned int len_e, unsigned char * m, unsigned int len ) 
+{
+  unsigned int ret;
+  unsigned int parameters [2+6];
+  parameters[0] = (unsigned int)SYSCALL_cx_math_powm_ID_IN;
+  parameters[1] = (unsigned int)G_try_last_open_context->jmp_buf;
+  parameters[2] = (unsigned int)r;
+  parameters[3] = (unsigned int)a;
+  parameters[4] = (unsigned int)e;
+  parameters[5] = (unsigned int)len_e;
+  parameters[6] = (unsigned int)m;
+  parameters[7] = (unsigned int)len;
+
+                              asm volatile("mov r0, %0"::"r"(parameters));
+                              asm volatile("svc #1");
+                              asm volatile("mov %0, r0":"=r"(ret));
+                                if (parameters[0] != SYSCALL_cx_math_powm_ID_OUT)
+  {
+    THROW(EXCEPTION_SECURITY);
+  }
+}
+
 void cx_math_modm ( unsigned char * v, unsigned int len_v, unsigned char * m, unsigned int len_m ) 
 {
   unsigned int ret;
@@ -1430,19 +1488,56 @@ void os_perso_set_pin ( unsigned char * pin, unsigned int length )
   }
 }
 
-void os_perso_set_seed ( unsigned char * seed, unsigned int length ) 
+void os_perso_set_seed ( unsigned int algorithm, unsigned char * seed, unsigned int length ) 
 {
   unsigned int ret;
-  unsigned int parameters [2+2];
+  unsigned int parameters [2+3];
   parameters[0] = (unsigned int)SYSCALL_os_perso_set_seed_ID_IN;
   parameters[1] = (unsigned int)G_try_last_open_context->jmp_buf;
-  parameters[2] = (unsigned int)seed;
-  parameters[3] = (unsigned int)length;
+  parameters[2] = (unsigned int)algorithm;
+  parameters[3] = (unsigned int)seed;
+  parameters[4] = (unsigned int)length;
 
                               asm volatile("mov r0, %0"::"r"(parameters));
                               asm volatile("svc #1");
                               asm volatile("mov %0, r0":"=r"(ret));
                                 if (parameters[0] != SYSCALL_os_perso_set_seed_ID_OUT)
+  {
+    THROW(EXCEPTION_SECURITY);
+  }
+}
+
+void os_perso_set_alternate_pin ( unsigned char * pin, unsigned int pinLength ) 
+{
+  unsigned int ret;
+  unsigned int parameters [2+2];
+  parameters[0] = (unsigned int)SYSCALL_os_perso_set_alternate_pin_ID_IN;
+  parameters[1] = (unsigned int)G_try_last_open_context->jmp_buf;
+  parameters[2] = (unsigned int)pin;
+  parameters[3] = (unsigned int)pinLength;
+
+                              asm volatile("mov r0, %0"::"r"(parameters));
+                              asm volatile("svc #1");
+                              asm volatile("mov %0, r0":"=r"(ret));
+                                if (parameters[0] != SYSCALL_os_perso_set_alternate_pin_ID_OUT)
+  {
+    THROW(EXCEPTION_SECURITY);
+  }
+}
+
+void os_perso_set_alternate_seed ( unsigned char * seed, unsigned int seedLength ) 
+{
+  unsigned int ret;
+  unsigned int parameters [2+2];
+  parameters[0] = (unsigned int)SYSCALL_os_perso_set_alternate_seed_ID_IN;
+  parameters[1] = (unsigned int)G_try_last_open_context->jmp_buf;
+  parameters[2] = (unsigned int)seed;
+  parameters[3] = (unsigned int)seedLength;
+
+                              asm volatile("mov r0, %0"::"r"(parameters));
+                              asm volatile("svc #1");
+                              asm volatile("mov %0, r0":"=r"(ret));
+                                if (parameters[0] != SYSCALL_os_perso_set_alternate_seed_ID_OUT)
   {
     THROW(EXCEPTION_SECURITY);
   }
@@ -1511,6 +1606,25 @@ unsigned int os_perso_isonboarded ( void )
                               asm volatile("svc #1");
                               asm volatile("mov %0, r0":"=r"(ret));
                                 if (parameters[0] != SYSCALL_os_perso_isonboarded_ID_OUT)
+  {
+    THROW(EXCEPTION_SECURITY);
+  }
+  return (unsigned int)ret;
+}
+
+unsigned int os_perso_get_devname ( unsigned char * devname, unsigned int length ) 
+{
+  unsigned int ret;
+  unsigned int parameters [2+2];
+  parameters[0] = (unsigned int)SYSCALL_os_perso_get_devname_ID_IN;
+  parameters[1] = (unsigned int)G_try_last_open_context->jmp_buf;
+  parameters[2] = (unsigned int)devname;
+  parameters[3] = (unsigned int)length;
+
+                              asm volatile("mov r0, %0"::"r"(parameters));
+                              asm volatile("svc #1");
+                              asm volatile("mov %0, r0":"=r"(ret));
+                                if (parameters[0] != SYSCALL_os_perso_get_devname_ID_OUT)
   {
     THROW(EXCEPTION_SECURITY);
   }
@@ -1932,6 +2046,44 @@ void os_setting_set ( unsigned int setting_id, unsigned int value )
   {
     THROW(EXCEPTION_SECURITY);
   }
+}
+
+void os_get_memory_info ( meminfo_t * meminfo ) 
+{
+  unsigned int ret;
+  unsigned int parameters [2+1];
+  parameters[0] = (unsigned int)SYSCALL_os_get_memory_info_ID_IN;
+  parameters[1] = (unsigned int)G_try_last_open_context->jmp_buf;
+  parameters[2] = (unsigned int)meminfo;
+
+                              asm volatile("mov r0, %0"::"r"(parameters));
+                              asm volatile("svc #1");
+                              asm volatile("mov %0, r0":"=r"(ret));
+                                if (parameters[0] != SYSCALL_os_get_memory_info_ID_OUT)
+  {
+    THROW(EXCEPTION_SECURITY);
+  }
+}
+
+unsigned int os_registry_get_icon ( unsigned int appidx, unsigned int offset, unsigned char * buffer, unsigned int maxlength ) 
+{
+  unsigned int ret;
+  unsigned int parameters [2+4];
+  parameters[0] = (unsigned int)SYSCALL_os_registry_get_icon_ID_IN;
+  parameters[1] = (unsigned int)G_try_last_open_context->jmp_buf;
+  parameters[2] = (unsigned int)appidx;
+  parameters[3] = (unsigned int)offset;
+  parameters[4] = (unsigned int)buffer;
+  parameters[5] = (unsigned int)maxlength;
+
+                              asm volatile("mov r0, %0"::"r"(parameters));
+                              asm volatile("svc #1");
+                              asm volatile("mov %0, r0":"=r"(ret));
+                                if (parameters[0] != SYSCALL_os_registry_get_icon_ID_OUT)
+  {
+    THROW(EXCEPTION_SECURITY);
+  }
+  return (unsigned int)ret;
 }
 
 void io_seproxyhal_spi_send ( const unsigned char * buffer, unsigned short length ) 

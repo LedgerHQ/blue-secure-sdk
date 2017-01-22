@@ -1,6 +1,6 @@
 /*******************************************************************************
-*   Ledger Nano S - Secure firmware
-*   (c) 2016 Ledger
+*   Ledger Blue - Secure firmware
+*   (c) 2016, 2017 Ledger
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #ifndef OS_APILEVEL_H
 #define OS_APILEVEL_H
 
-#define CX_APILEVEL 5
+#define CX_APILEVEL 6
+#define CX_COMPAT_APILEVEL 6
 
 #endif // OS_APILEVEL_H

@@ -169,7 +169,7 @@ int hci_send_req(struct hci_request *r, BOOL async)
   uint16_t opcode = htobs(cmd_opcode_pack(r->ogf, r->ocf));
   hci_event_pckt *event_pckt;
   hci_uart_pckt *hci_hdr;
-  int to = 1; //DEFAULT_TIMEOUT;
+  int to = /*1;*/ DEFAULT_TIMEOUT;
   struct timer t;
   tHciDataPacket * hciReadPacket = NULL;
   tListNode hciTempQueue;
@@ -208,6 +208,11 @@ int hci_send_req(struct hci_request *r, BOOL async)
       // don't ack the BLUENRG_RECV_EVENT as we would require to reply another command to it.
       if(!list_is_empty((tListNode*)&hciReadPktRxQueue)){
         break;
+      }
+
+      // timeout
+      if (!to--) {
+        return -1;
       }
 
       // ack the received event we have processed
