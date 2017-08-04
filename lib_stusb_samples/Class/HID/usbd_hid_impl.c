@@ -115,7 +115,7 @@
 #define USBD_VID                      0x2C97
 #if TARGET_ID == 0x31000002 // blue
 #define USBD_PID                      0x0000
-const uint8_t const USBD_PRODUCT_FS_STRING[] = {
+static const uint8_t const USBD_PRODUCT_FS_STRING[] = {
   4*2+2,
   USB_DESC_TYPE_STRING,
   'B', 0,
@@ -126,7 +126,7 @@ const uint8_t const USBD_PRODUCT_FS_STRING[] = {
 
 #elif TARGET_ID == 0x31100002 // nano s
 #define USBD_PID                      0x0001
-const uint8_t const USBD_PRODUCT_FS_STRING[] = {
+static const uint8_t const USBD_PRODUCT_FS_STRING[] = {
   6*2+2,
   USB_DESC_TYPE_STRING,
   'N', 0,
@@ -138,7 +138,7 @@ const uint8_t const USBD_PRODUCT_FS_STRING[] = {
 };
 #elif TARGET_ID == 0x31200002 // aramis
 #define USBD_PID                      0x0002
-const uint8_t const USBD_PRODUCT_FS_STRING[] = {
+static const uint8_t const USBD_PRODUCT_FS_STRING[] = {
   6*2+2,
   USB_DESC_TYPE_STRING,
   'A', 0,
@@ -164,10 +164,11 @@ static const uint8_t const USBD_LangIDDesc[]=
 
 static const uint8_t const USB_SERIAL_STRING[] =
 {
-  3*2+2,      
+  4*2+2,      
   USB_DESC_TYPE_STRING,
   '0', 0,
-  '.', 0,
+  '0', 0,
+  '0', 0,
   '1', 0,
 };
 
@@ -187,7 +188,7 @@ static const uint8_t const USBD_MANUFACTURER_STRING[] = {
 
 
 
-const uint8_t const HID_ReportDesc[] = {
+static const uint8_t const HID_ReportDesc[] = {
   0x06, 0xA0, 0xFF,       // Usage page (vendor defined)
   0x09, 0x01,     // Usage ID (vendor defined)
   0xA1, 0x01,     // Collection (application)
@@ -270,7 +271,7 @@ static __ALIGN_BEGIN const uint8_t const USBD_CfgDesc[] __ALIGN_END =
 
 
 /* USB HID device Configuration Descriptor */
-__ALIGN_BEGIN const uint8_t const USBD_HID_Desc[] __ALIGN_END =
+static __ALIGN_BEGIN const uint8_t const USBD_HID_Desc[] __ALIGN_END =
 {
   /* 18 */
   0x09,         /*bLength: HID Descriptor size*/
@@ -300,7 +301,7 @@ static __ALIGN_BEGIN const uint8_t const USBD_DeviceQualifierDesc[] __ALIGN_END 
 };
 
 /* USB Standard Device Descriptor */
-const uint8_t const USBD_DeviceDesc[]= {
+static const uint8_t const USBD_DeviceDesc[]= {
   0x12,                       /* bLength */
   USB_DESC_TYPE_DEVICE,       /* bDescriptorType */
   0x00,                       /* bcdUSB */
@@ -471,19 +472,22 @@ uint8_t  USBD_HID_DataOut_impl (USBD_HandleTypeDef *pdev,
 
   // prepare receiving the next chunk (masked time)
   USBD_LL_PrepareReceive(pdev, HID_EPOUT_ADDR , HID_EPOUT_SIZE);
-    
-  // add to the hid transport
-  switch(io_usb_hid_receive(io_usb_send_apdu_data, buffer, io_seproxyhal_get_ep_rx_size(HID_EPOUT_ADDR))) {
-    default:
-      break;
 
-    case IO_USB_APDU_RECEIVED:
-      G_io_apdu_media = IO_APDU_MEDIA_USB_HID; // for application code
-      G_io_apdu_state = APDU_USB_HID; // for next call to io_exchange
-      G_io_apdu_length = G_io_usb_hid_total_length;
-      break;
+
+  // avoid troubles when an apdu has not been replied yet
+  if (G_io_apdu_media == IO_APDU_MEDIA_NONE) {    
+    // add to the hid transport
+    switch(io_usb_hid_receive(io_usb_send_apdu_data, buffer, io_seproxyhal_get_ep_rx_size(HID_EPOUT_ADDR))) {
+      default:
+        break;
+
+      case IO_USB_APDU_RECEIVED:
+        G_io_apdu_media = IO_APDU_MEDIA_USB_HID; // for application code
+        G_io_apdu_state = APDU_USB_HID; // for next call to io_exchange
+        G_io_apdu_length = G_io_usb_hid_total_length;
+        break;
+    }
   }
-
   return USBD_OK;
 }
 

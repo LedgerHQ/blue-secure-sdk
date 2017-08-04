@@ -56,9 +56,9 @@ void longjmp(jmp_buf __jmpb, int __retval);
 int setjmp(jmp_buf __jmpb);
 
 #define __MPU_PRESENT 1 // THANKS ST FOR YOUR HARDWORK
+#include <core_sc000.h>
 #include "stddef.h"
 #include "stdint.h"
-#include <core_sc000.h>
 
 #define UNUSED(x) (void)x
 
@@ -255,6 +255,7 @@ typedef enum {
     IO_APDU_MEDIA_USB_HID = 1,
     IO_APDU_MEDIA_BLE,
     IO_APDU_MEDIA_NFC,
+    IO_APDU_MEDIA_USB_CCID,
 } io_apdu_media_t;
 
 extern volatile io_apdu_media_t G_io_apdu_media;
@@ -675,16 +676,16 @@ SYSCALL PERMISSION(
     APPLICATION_FLAG_GLOBAL_PIN) unsigned int os_global_pin_is_validated(void);
 // return 1 if validated
 SYSCALL
-    PERMISSION(APPLICATION_FLAG_GLOBAL_PIN) unsigned int os_global_pin_check(
-        unsigned char *pin_buffer PLENGTH(pin_length),
-        unsigned char pin_length);
+PERMISSION(APPLICATION_FLAG_GLOBAL_PIN)
+unsigned int os_global_pin_check(unsigned char *pin_buffer PLENGTH(pin_length),
+                                 unsigned char pin_length);
 SYSCALL
-    PERMISSION(APPLICATION_FLAG_GLOBAL_PIN) void os_global_pin_invalidate(void);
+PERMISSION(APPLICATION_FLAG_GLOBAL_PIN) void os_global_pin_invalidate(void);
 SYSCALL PERMISSION(
     APPLICATION_FLAG_GLOBAL_PIN) unsigned int os_global_pin_retries(void);
 
 SYSCALL
-    PERMISSION(APPLICATION_FLAG_BOLOS_UX) unsigned int os_registry_count(void);
+PERMISSION(APPLICATION_FLAG_BOLOS_UX) unsigned int os_registry_count(void);
 // return any entry, activated or not, enabled or not, empty or not. to enable
 // full control
 SYSCALL PERMISSION(APPLICATION_FLAG_BOLOS_UX) void os_registry_get(

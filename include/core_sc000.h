@@ -53,8 +53,9 @@ extern "C" {
  */
 
 /*  CMSIS SC000 definitions */
-#define __SC000_CMSIS_VERSION_MAIN (0x03) /*!< [31:16] CMSIS HAL main version  \
-                                             */
+#define __SC000_CMSIS_VERSION_MAIN                                             \
+    (0x03) /*!< [31:16] CMSIS HAL main version  \                              \
+              */
 #define __SC000_CMSIS_VERSION_SUB (0x01) /*!< [15:0]  CMSIS HAL sub version */
 #define __SC000_CMSIS_VERSION                                                  \
     ((__SC000_CMSIS_VERSION_MAIN << 16) |                                      \
@@ -70,7 +71,7 @@ extern "C" {
 #elif defined(__ICCARM__)
 #define __ASM __asm /*!< asm keyword for IAR Compiler          */
 #define __INLINE                                                               \
-    inline /*!< inline keyword for IAR Compiler. Only available in High        \
+    inline /*!< inline keyword for IAR Compiler. Only available in High \                                                                             \
               optimization mode! */
 #define __STATIC_INLINE static inline
 
@@ -116,9 +117,9 @@ extern "C" {
 #endif
 #endif
 
-#include <core_cmFunc.h>  /* Core Function Access                            */
-#include <core_cmInstr.h> /* Core Instruction Access                         */
 #include <stdint.h>       /* standard types definitions                      */
+#include <core_cmInstr.h> /* Core Instruction Access                         */
+#include <core_cmFunc.h>  /* Core Function Access                            */
 
 #endif /* __CORE_SC000_H_GENERIC */
 
@@ -213,7 +214,7 @@ typedef union {
  */
 typedef union {
     struct {
-        uint32_t ISR : 9; /*!< bit:  0.. 8  Exception number */
+        uint32_t ISR : 9;         /*!< bit:  0.. 8  Exception number */
         uint32_t _reserved0 : 23; /*!< bit:  9..31  Reserved */
     } b;        /*!< Structure used for bit  access                  */
     uint32_t w; /*!< Type      used for word access                  */
@@ -249,8 +250,8 @@ typedef union {
     struct {
         uint32_t
             nPRIV : 1; /*!< bit:      0  Execution privilege in Thread mode */
-        uint32_t SPSEL : 1; /*!< bit:      1  Stack to be used */
-        uint32_t FPCA : 1; /*!< bit:      2  FP extension active flag */
+        uint32_t SPSEL : 1;       /*!< bit:      1  Stack to be used */
+        uint32_t FPCA : 1;        /*!< bit:      2  FP extension active flag */
         uint32_t _reserved0 : 29; /*!< bit:  3..31  Reserved */
     } b;        /*!< Structure used for bit  access                  */
     uint32_t w; /*!< Type      used for word access                  */
@@ -303,7 +304,7 @@ typedef struct {
         VTOR; /*!< Offset: 0x008 (R/W)  Vector Table Offset Register */
     __IO uint32_t AIRCR; /*!< Offset: 0x00C (R/W)  Application Interrupt and
                             Reset Control Register      */
-    __IO uint32_t SCR; /*!< Offset: 0x010 (R/W)  System Control Register */
+    __IO uint32_t SCR;   /*!< Offset: 0x010 (R/W)  System Control Register */
     __IO uint32_t
         CCR; /*!< Offset: 0x014 (R/W)  Configuration Control Register */
     uint32_t RESERVED0[1];
@@ -385,7 +386,7 @@ typedef struct {
 
 #define SCB_AIRCR_VECTKEYSTAT_Pos 16 /*!< SCB AIRCR: VECTKEYSTAT Position */
 #define SCB_AIRCR_VECTKEYSTAT_Msk                                              \
-    (0xFFFFUL << SCB_AIRCR_VECTKEYSTAT_Pos) /*!< SCB AIRCR: VECTKEYSTAT Mask   \
+    (0xFFFFUL << SCB_AIRCR_VECTKEYSTAT_Pos) /*!< SCB AIRCR: VECTKEYSTAT Mask \                                                                             \
                                                */
 
 #define SCB_AIRCR_ENDIANESS_Pos 15 /*!< SCB AIRCR: ENDIANESS Position */
@@ -396,8 +397,9 @@ typedef struct {
 #define SCB_AIRCR_SYSRESETREQ_Msk                                              \
     (1UL << SCB_AIRCR_SYSRESETREQ_Pos) /*!< SCB AIRCR: SYSRESETREQ Mask */
 
-#define SCB_AIRCR_VECTCLRACTIVE_Pos 1 /*!< SCB AIRCR: VECTCLRACTIVE Position   \
-                                         */
+#define SCB_AIRCR_VECTCLRACTIVE_Pos                                            \
+    1 /*!< SCB AIRCR: VECTCLRACTIVE Position   \                               \
+         */
 #define SCB_AIRCR_VECTCLRACTIVE_Msk                                            \
     (1UL << SCB_AIRCR_VECTCLRACTIVE_Pos) /*!< SCB AIRCR: VECTCLRACTIVE Mask */
 
@@ -532,9 +534,9 @@ typedef struct {
 /** \brief  Structure type to access the Memory Protection Unit (MPU).
  */
 typedef struct {
-    __I uint32_t TYPE; /*!< Offset: 0x000 (R/ )  MPU Type Register */
+    __I uint32_t TYPE;  /*!< Offset: 0x000 (R/ )  MPU Type Register */
     __IO uint32_t CTRL; /*!< Offset: 0x004 (R/W)  MPU Control Register */
-    __IO uint32_t RNR; /*!< Offset: 0x008 (R/W)  MPU Region RNRber Register */
+    __IO uint32_t RNR;  /*!< Offset: 0x008 (R/W)  MPU Region RNRber Register */
     __IO uint32_t
         RBAR; /*!< Offset: 0x00C (R/W)  MPU Region Base Address Register */
     __IO uint32_t
@@ -594,8 +596,9 @@ typedef struct {
      << MPU_RASR_ATTRS_Pos) /*!< MPU RASR: MPU Region Attribute field Mask */
 
 #define MPU_RASR_XN_Pos 28 /*!< MPU RASR: ATTRS.XN Position */
-#define MPU_RASR_XN_Msk (1UL << MPU_RASR_XN_Pos) /*!< MPU RASR: ATTRS.XN Mask  \
-                                                    */
+#define MPU_RASR_XN_Msk                                                        \
+    (1UL << MPU_RASR_XN_Pos) /*!< MPU RASR: ATTRS.XN Mask  \                   \
+                                */
 
 #define MPU_RASR_AP_Pos 24 /*!< MPU RASR: ATTRS.AP Position */
 #define MPU_RASR_AP_Msk                                                        \
@@ -650,15 +653,16 @@ typedef struct {
 #define SysTick_BASE                                                           \
     (SCS_BASE + 0x0010UL) /*!< SysTick Base Address              */
 #define NVIC_BASE                                                              \
-    (SCS_BASE + 0x0100UL)              /*!< NVIC Base Address                 */
-#define SCB_BASE (SCS_BASE + 0x0D00UL) /*!< System Control Block Base Address  \
-                                          */
+    (SCS_BASE + 0x0100UL) /*!< NVIC Base Address                 */
+#define SCB_BASE                                                               \
+    (SCS_BASE + 0x0D00UL) /*!< System Control Block Base Address  \            \
+                             */
 
 #define SCnSCB                                                                 \
     ((SCnSCB_Type *)SCS_BASE)      /*!< System control Register not in SCB */
 #define SCB ((SCB_Type *)SCB_BASE) /*!< SCB configuration struct           */
 #define SysTick                                                                \
-    ((SysTick_Type *)SysTick_BASE) /*!< SysTick configuration struct       */
+    ((SysTick_Type *)SysTick_BASE)    /*!< SysTick configuration struct       */
 #define NVIC ((NVIC_Type *)NVIC_BASE) /*!< NVIC configuration struct */
 
 #if (__MPU_PRESENT == 1)

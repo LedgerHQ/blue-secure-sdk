@@ -25,6 +25,10 @@
 #include "hci.h"
 #endif // HAVE_BLE
 
+#ifdef HAVE_BOLOS_UX
+#include "bolos_ux.h"
+#endif
+
 
 #ifdef DEBUG
 #define LOG printf
@@ -139,9 +143,13 @@ void io_seproxyhal_handle_usb_ep_xfer_event(void) {
 
 #endif // HAVE_L4_USBLIB
 
-void io_usb_send_apdu_data(unsigned char* buffer, unsigned short length) {
+void io_usb_send_ep(unsigned int ep, unsigned char* buffer, unsigned short length, unsigned int timeout) {
   unsigned int rx_len;
-  unsigned int timeout = 20;
+
+  // don't spoil the timeout :)
+  if (timeout) {
+    timeout++;
+  }
 
   // won't send if overflowing seproxyhal buffer format
   if (length > 255) {
@@ -151,52 +159,59 @@ void io_usb_send_apdu_data(unsigned char* buffer, unsigned short length) {
   G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_USB_EP_PREPARE;
   G_io_seproxyhal_spi_buffer[1] = (3+length)>>8;
   G_io_seproxyhal_spi_buffer[2] = (3+length);
-  G_io_seproxyhal_spi_buffer[3] = 0x82;
+  G_io_seproxyhal_spi_buffer[3] = ep|0x80;
   G_io_seproxyhal_spi_buffer[4] = SEPROXYHAL_TAG_USB_EP_PREPARE_DIR_IN;
   G_io_seproxyhal_spi_buffer[5] = length;
   io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 6);
   io_seproxyhal_spi_send(buffer, length);
 
-  for (;;) {
-    if (!io_seproxyhal_spi_is_status_sent()) {
-      io_seproxyhal_general_status();
-    }
+  // if timeout is requested
+  if(timeout) {
+    for (;;) {
+      if (!io_seproxyhal_spi_is_status_sent()) {
+        io_seproxyhal_general_status();
+      }
 
-    rx_len = io_seproxyhal_spi_recv(G_io_seproxyhal_spi_buffer, sizeof(G_io_seproxyhal_spi_buffer), 0);
+      rx_len = io_seproxyhal_spi_recv(G_io_seproxyhal_spi_buffer, sizeof(G_io_seproxyhal_spi_buffer), 0);
 
-    // wait for ack of the seproxyhal
-    // discard if not an acknowledgment
-    if (G_io_seproxyhal_spi_buffer[0] != SEPROXYHAL_TAG_USB_EP_XFER_EVENT
-      || rx_len != 6 
-      || G_io_seproxyhal_spi_buffer[3] != 0x82 
-      || G_io_seproxyhal_spi_buffer[4] != SEPROXYHAL_TAG_USB_EP_XFER_IN
-      || G_io_seproxyhal_spi_buffer[5] != length) {
-      // usb reset ?
-      io_seproxyhal_handle_usb_event();
-
-      // link disconnected ?
-      if(G_io_seproxyhal_spi_buffer[0] == SEPROXYHAL_TAG_STATUS_EVENT) {
-        if (!(U4BE(G_io_seproxyhal_spi_buffer, 3) & SEPROXYHAL_TAG_STATUS_EVENT_FLAG_USB_POWERED)) {
-         THROW(EXCEPTION_IO_RESET);
+      // wait for ack of the seproxyhal
+      // discard if not an acknowledgment
+      if (G_io_seproxyhal_spi_buffer[0] != SEPROXYHAL_TAG_USB_EP_XFER_EVENT
+        || rx_len != 6 
+        || G_io_seproxyhal_spi_buffer[3] != (ep|0x80)
+        || G_io_seproxyhal_spi_buffer[4] != SEPROXYHAL_TAG_USB_EP_XFER_IN
+        || G_io_seproxyhal_spi_buffer[5] != length) {
+        
+        // handle loss of communication with the host
+        if (timeout && timeout--==1) {
+          THROW(EXCEPTION_IO_RESET);
         }
+
+        // link disconnected ?
+        if(G_io_seproxyhal_spi_buffer[0] == SEPROXYHAL_TAG_STATUS_EVENT) {
+          if (!(U4BE(G_io_seproxyhal_spi_buffer, 3) & SEPROXYHAL_TAG_STATUS_EVENT_FLAG_USB_POWERED)) {
+           THROW(EXCEPTION_IO_RESET);
+          }
+        }
+        
+        // usb reset ?
+        //io_seproxyhal_handle_usb_event();
+        // also process other transfer requests if any (useful for HID keyboard while playing with CAPS lock key, side effect on LED status)
+        io_seproxyhal_handle_event();
+
+        // no general status ack, io_event is responsible for it
+        continue;
       }
 
-      if (!io_event(CHANNEL_SPI)) {
-        LOG("missing NOTIFY_INDICATE event, %02X received\n", G_io_seproxyhal_spi_buffer[0]);
-      }
-
-      // handle loss of communication with the host
-      if (! timeout--) {
-        THROW(EXCEPTION_IO_RESET);
-      }
-
-      // no general status ack, io_event is responsible for it
-      continue;
+      // chunk sending succeeded
+      break;
     }
-
-    // chunk sending succeeded
-    break;
   }
+}
+
+void io_usb_send_apdu_data(unsigned char* buffer, unsigned short length) {
+  // wait for 20 events before hanging up and timeout (~2 seconds of timeout)
+  io_usb_send_ep(0x82, buffer, length, 20);
 }
 
 #endif // HAVE_IO_USB
@@ -296,12 +311,16 @@ void io_seproxyhal_init(void) {
   #endif // HAVE_USB_APDU
 
   io_seproxyhal_init_ux();
+  io_seproxyhal_init_button();
 }
 
 void io_seproxyhal_init_ux(void) {
   // initialize the touch part
   G_bagl_last_touched_not_released_component = NULL;
 
+}
+
+void io_seproxyhal_init_button(void) {
   // no button push so far
   G_button_mask = 0;
   G_button_same_mask_counter = 0;
@@ -495,37 +514,12 @@ void io_seproxyhal_touch_element_callback(const bagl_element_t* elements, unsign
   // not processed
 }
 
-void io_seproxyhal_display_default(bagl_element_t * element) {
-  // process automagically address from rom and from ram
-  unsigned int type = (element->component.type & ~(BAGL_FLAG_TOUCHABLE));
-
-  if (type != BAGL_NONE) {
-    if (element->text != NULL) {
-      unsigned int text_adr = PIC((unsigned int)element->text);
-      unsigned short length = sizeof(bagl_component_t)+strlen((const char*)text_adr);
-      G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_SCREEN_DISPLAY_STATUS;
-      G_io_seproxyhal_spi_buffer[1] = length>>8;
-      G_io_seproxyhal_spi_buffer[2] = length;
-      io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 3);
-      io_seproxyhal_spi_send((const void*)&element->component, sizeof(bagl_component_t));
-      io_seproxyhal_spi_send((const void*)text_adr, length-sizeof(bagl_component_t));
-    }
-    else {
-      unsigned short length = sizeof(bagl_component_t);
-      G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_SCREEN_DISPLAY_STATUS;
-      G_io_seproxyhal_spi_buffer[1] = length>>8;
-      G_io_seproxyhal_spi_buffer[2] = length;
-      io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 3);
-      io_seproxyhal_spi_send((const void*)&element->component, sizeof(bagl_component_t));
-    }
-  }
-}
-
 void io_seproxyhal_display_bitmap(int x, int y, unsigned int w, unsigned int h, unsigned int* color_index, unsigned int bit_per_pixel, unsigned char* bitmap) {
   // component type = ICON
   // component icon id = 0
   // => bitmap transmitted
   bagl_component_t c;
+  bagl_icon_details_t d;
   os_memset(&c, 0, sizeof(c));
   c.type = BAGL_ICON;
   c.x = x;
@@ -533,15 +527,22 @@ void io_seproxyhal_display_bitmap(int x, int y, unsigned int w, unsigned int h, 
   c.width = w;
   c.height = h;
   // done by memset // c.icon_id = 0;
+  d.width = w;
+  d.height = h;
+  d.bpp = bit_per_pixel;
+  d.colors = color_index;
+  d.bitmap = bitmap;
 
+  io_seproxyhal_display_icon(&c, &d);
+  /*
   // color index size
   h = ((1<<bit_per_pixel)*sizeof(unsigned int)); 
   // bitmap size
   w = ((w*c.height*bit_per_pixel)/8)+((w*c.height*bit_per_pixel)%8?1:0);
   unsigned short length = sizeof(bagl_component_t)
-                          +1 /* bpp */
-                          +h /* color index */
-                          +w; /* image bitmap */
+                          +1 // bpp 
+                          +h // color index
+                          +w; // image bitmap
   G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_SCREEN_DISPLAY_STATUS;
   G_io_seproxyhal_spi_buffer[1] = length>>8;
   G_io_seproxyhal_spi_buffer[2] = length;
@@ -551,9 +552,17 @@ void io_seproxyhal_display_bitmap(int x, int y, unsigned int w, unsigned int h, 
   io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 1);
   io_seproxyhal_spi_send((unsigned char*)color_index, h);
   io_seproxyhal_spi_send(bitmap, w);
+  */
 }
 
 void io_seproxyhal_display_icon(bagl_component_t* icon_component, bagl_icon_details_t* icon_details) {
+  bagl_component_t icon_component_mod;
+  // ensure not being out of bounds in the icon component agianst the declared icon real size
+  os_memmove(&icon_component_mod, icon_component, sizeof(bagl_component_t));
+  icon_component_mod.width = icon_details->width;
+  icon_component_mod.height = icon_details->height;
+  icon_component = &icon_component_mod;
+
 #ifdef SEPROXYHAL_TAG_SCREEN_DISPLAY_RAW_STATUS
   unsigned int len;
   unsigned int icon_len;
@@ -605,7 +614,7 @@ void io_seproxyhal_display_icon(bagl_component_t* icon_component, bagl_icon_deta
   raw.header.seph.len[0] = (len + sizeof(raw) - sizeof(raw.header.seph)) >> 8;
   raw.header.seph.len[1] = (len + sizeof(raw) - sizeof(raw.header.seph));
 
-  // swap endianess of coordinates
+  // swap endianess of coordinates (make it big endian)
   SWAP(raw.x.b[0], raw.x.b[1]);
   SWAP(raw.y.b[0], raw.y.b[1]);
   SWAP(raw.w.b[0], raw.w.b[1]);
@@ -635,16 +644,74 @@ void io_seproxyhal_display_icon(bagl_component_t* icon_component, bagl_icon_deta
     icon_len -= len;
     icon_off += len;
   }
-#endif // SEPROXYHAL_TAG_SCREEN_DISPLAY_RAW_STATUS
+#else // !SEPROXYHAL_TAG_SCREEN_DISPLAY_RAW_STATUS // for nano s
+  // component type = ICON, provided bitmap
+  // => bitmap transmitted
+
+
+  // color index size
+  unsigned int h = (1<<(icon_details->bpp))*sizeof(unsigned int); 
+  // bitmap size
+  unsigned int w = ((icon_component->width*icon_component->height*icon_details->bpp)/8)+((icon_component->width*icon_component->height*icon_details->bpp)%8?1:0);
+  unsigned short length = sizeof(bagl_component_t)
+                          +1 /* bpp */
+                          +h /* color index */
+                          +w; /* image bitmap size */
+  G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_SCREEN_DISPLAY_STATUS;
+  G_io_seproxyhal_spi_buffer[1] = length>>8;
+  G_io_seproxyhal_spi_buffer[2] = length;
+  io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 3);
+  io_seproxyhal_spi_send((unsigned char*)icon_component, sizeof(bagl_component_t));
+  G_io_seproxyhal_spi_buffer[0] = icon_details->bpp;
+  io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 1);
+  io_seproxyhal_spi_send((unsigned char*)PIC(icon_details->colors), h);
+  io_seproxyhal_spi_send((unsigned char*)PIC(icon_details->bitmap), w);
+#endif // !SEPROXYHAL_TAG_SCREEN_DISPLAY_RAW_STATUS
+}
+
+void io_seproxyhal_display_default(bagl_element_t * element) {
+  // process automagically address from rom and from ram
+  unsigned int type = (element->component.type & ~(BAGL_FLAG_TOUCHABLE));
+
+  if (type != BAGL_NONE) {
+    if (element->text != NULL) {
+      unsigned int text_adr = PIC((unsigned int)element->text);
+      // consider an icon details descriptor is pointed by the context
+      if (type == BAGL_ICON && element->component.icon_id == 0) {
+        io_seproxyhal_display_icon(&element->component, (bagl_icon_details_t*)text_adr);
+      }
+      else {
+        unsigned short length = sizeof(bagl_component_t)+strlen((const char*)text_adr);
+        G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_SCREEN_DISPLAY_STATUS;
+        G_io_seproxyhal_spi_buffer[1] = length>>8;
+        G_io_seproxyhal_spi_buffer[2] = length;
+        io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 3);
+        io_seproxyhal_spi_send((const void*)&element->component, sizeof(bagl_component_t));
+        io_seproxyhal_spi_send((const void*)text_adr, length-sizeof(bagl_component_t));
+      }
+    }
+    else {
+      unsigned short length = sizeof(bagl_component_t);
+      G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_SCREEN_DISPLAY_STATUS;
+      G_io_seproxyhal_spi_buffer[1] = length>>8;
+      G_io_seproxyhal_spi_buffer[2] = length;
+      io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 3);
+      io_seproxyhal_spi_send((const void*)&element->component, sizeof(bagl_component_t));
+    }
+  }
 }
 
 unsigned int bagl_label_roundtrip_duration_ms(const bagl_element_t* e, unsigned int average_char_width) {
+  return bagl_label_roundtrip_duration_ms_buf(e, e->text, average_char_width);
+}
+
+unsigned int bagl_label_roundtrip_duration_ms_buf(const bagl_element_t* e, const char* str, unsigned int average_char_width) {
   // not a scrollable label
   if (e == NULL || (e->component.type != BAGL_LABEL && e->component.type != BAGL_LABELINE)) {
     return 0;
   }
   
-  unsigned int text_adr = PIC((unsigned int)e->text);
+  unsigned int text_adr = PIC((unsigned int)str);
   unsigned int textlen = 0;
   
   // no delay, no text to display
@@ -728,6 +795,7 @@ void io_seproxyhal_button_push(button_push_callback_t button_callback, unsigned 
     unsigned int button_same_mask_counter;
     // enable speeded up long push
     if (new_button_mask == G_button_mask) {
+      // each 100ms ~
       G_button_same_mask_counter++;
     }
 
@@ -753,6 +821,17 @@ void io_seproxyhal_button_push(button_push_callback_t button_callback, unsigned 
     // reset counter when button mask changes
     if (new_button_mask != G_button_mask) {
       G_button_same_mask_counter=0;
+    }
+
+    if (button_same_mask_counter >= BUTTON_FAST_THRESHOLD_CS) {
+      // fast bit when pressing and timing is right
+      if ((button_same_mask_counter%BUTTON_FAST_ACTION_CS) == 0) {
+        button_mask |= BUTTON_EVT_FAST;
+      }
+      // fast bit when releasing and threshold has been exceeded
+      if ((button_mask & BUTTON_EVT_RELEASED)) {
+        button_mask |= BUTTON_EVT_FAST;
+      }
     }
 
     // indicate if button have been released
@@ -822,176 +901,6 @@ unsigned short io_exchange(unsigned char channel, unsigned short tx_len) {
             BLE_protocol_send(G_io_apdu_buffer, tx_len);
             goto break_send;
 #endif // HAVE_BLE_APDU
-
-
-
-#ifdef HAVE_M24SR_NFC
-          case APDU_NFC_M24SR:
-            // split in apdu to write into the M24SR and wait M24SR rapdu response.
-            // select the NDEF file
-            // issue an APDU to read the first block content (containing the total apdu length) (read as much as possible)
-            G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_M24SR_C_APDU;
-            G_io_seproxyhal_spi_buffer[1] = 0;
-            G_io_seproxyhal_spi_buffer[2] = 7;
-            // Forge NDEF Select command
-            G_io_seproxyhal_spi_buffer[3] = 0x00;
-            G_io_seproxyhal_spi_buffer[4] = 0xA4;
-            G_io_seproxyhal_spi_buffer[5] = 0x00;
-            G_io_seproxyhal_spi_buffer[6] = 0x0C;
-            G_io_seproxyhal_spi_buffer[7] = 0x02;
-            G_io_seproxyhal_spi_buffer[8] = 0x00;
-            G_io_seproxyhal_spi_buffer[9] = 0x01;
-
-            // wait for a NFC_RESPONSE
-            G_io_apdu_state = APDU_NFC_M24SR_SELECT;
-            io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 10);
-            break;
-
-          case APDU_NFC_M24SR_SELECT:
-            // wait for select reply 
-            rx_len = io_seproxyhal_spi_recv(G_io_seproxyhal_spi_buffer, sizeof(G_io_seproxyhal_spi_buffer), 0);
-
-            if (rx_len-3 != U2(G_io_seproxyhal_spi_buffer[1],G_io_seproxyhal_spi_buffer[2])) {
-              LOG("invalid TLV format\n");
-              goto invalid_apdu_packet;
-            }
-            // expect M24SR RAPDU with 0x90 0x00
-            if (G_io_seproxyhal_spi_buffer[0] != SEPROXYHAL_TAG_M24SR_RESPONSE_APDU_EVENT) {
-              if (!io_event(CHANNEL_SPI)) {
-                LOG("invalid SELECT reply\n");
-                //goto invalid_apdu_packet;
-              }
-
-              // close the event if not done previously (by a display or whatever)
-              if (!io_seproxyhal_spi_is_status_sent()) {
-                  io_seproxyhal_general_status();
-              }
-              continue;
-            }
-            if (G_io_seproxyhal_spi_buffer[1] != 0 || G_io_seproxyhal_spi_buffer[2] != 2 || G_io_seproxyhal_spi_buffer[3] != 0x90 || G_io_seproxyhal_spi_buffer[4] != 0x00) {
-              LOG("invalid SELECT reply\n");
-              goto invalid_apdu_packet;
-            }
-
-            G_io_apdu_length = tx_len;
-            G_io_apdu_offset = 0;
-
-            tx_len = MIN(0xF6-2, G_io_apdu_length);
-
-            // forge the first update binary, putting 0x00 0x00 into the RAPDU NDEF file length
-            G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_M24SR_C_APDU;
-            G_io_seproxyhal_spi_buffer[1] = 0;
-            G_io_seproxyhal_spi_buffer[2] = tx_len + 5 /*update binary header*/ + 2 /* NDEF file length*/;
-            // Forge NDEF Select command
-            G_io_seproxyhal_spi_buffer[3] = 0x00;
-            G_io_seproxyhal_spi_buffer[4] = 0xD6;
-            G_io_seproxyhal_spi_buffer[5] = 0x00;
-            G_io_seproxyhal_spi_buffer[6] = 0x00;
-            G_io_seproxyhal_spi_buffer[7] = tx_len+2 /*NDEF file length*/;
-            G_io_seproxyhal_spi_buffer[8] = 0x00;
-            G_io_seproxyhal_spi_buffer[9] = 0x00;
-            os_memmove(G_io_seproxyhal_spi_buffer+10, G_io_apdu_buffer+G_io_apdu_offset, tx_len);
-            G_io_apdu_offset = tx_len;
-
-            // wait for a NFC_RESPONSE
-            G_io_apdu_state = APDU_NFC_M24SR_RAPDU;
-            io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, G_io_seproxyhal_spi_buffer[2]+3);
-            break;
-
-
-          case APDU_NFC_M24SR_RAPDU:
-            // wait for update binary reply 
-            rx_len = io_seproxyhal_spi_recv(G_io_seproxyhal_spi_buffer, sizeof(G_io_seproxyhal_spi_buffer), 0);
-
-            if (rx_len-3 != U2(G_io_seproxyhal_spi_buffer[1],G_io_seproxyhal_spi_buffer[2])) {
-              LOG("invalid TLV format\n");
-              goto invalid_apdu_packet;
-            }
-            // expect M24SR RAPDU with 0x90 0x00
-            if (G_io_seproxyhal_spi_buffer[0] != SEPROXYHAL_TAG_M24SR_RESPONSE_APDU_EVENT) {
-              if (!io_event(CHANNEL_SPI)) {
-                LOG("invalid UPDATE BINARY reply\n");
-                //goto invalid_apdu_packet;
-              }
-
-              // close the event if not done previously (by a display or whatever)
-              if (!io_seproxyhal_spi_is_status_sent()) {
-                  io_seproxyhal_general_status();
-              }
-              continue;
-            } 
-            if (G_io_seproxyhal_spi_buffer[1] != 0 || G_io_seproxyhal_spi_buffer[2] != 2 || G_io_seproxyhal_spi_buffer[3] != 0x90 || G_io_seproxyhal_spi_buffer[4] != 0x00) {
-              LOG("invalid UPDATE BINARY reply\n");
-              goto invalid_apdu_packet;
-            }
-
-            if (G_io_apdu_length == G_io_apdu_offset) {
-              // update ndef length
-              G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_M24SR_C_APDU;
-              G_io_seproxyhal_spi_buffer[1] = 0;
-              G_io_seproxyhal_spi_buffer[2] = 7 /*update binary header*/;
-              // Forge NDEF Select command
-              G_io_seproxyhal_spi_buffer[3] = 0x00;
-              G_io_seproxyhal_spi_buffer[4] = 0xD6;
-              G_io_seproxyhal_spi_buffer[5] = 0x00;
-              G_io_seproxyhal_spi_buffer[6] = 0x00;
-              G_io_seproxyhal_spi_buffer[7] = 2;
-              G_io_seproxyhal_spi_buffer[8] = G_io_apdu_length>>8;
-              G_io_seproxyhal_spi_buffer[9] = G_io_apdu_length;
-
-              G_io_apdu_state = APDU_NFC_M24SR_FIRST;
-              io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, G_io_seproxyhal_spi_buffer[2]+3);
-            }
-            else {
-              // update a part of the apdu
-              tx_len = MIN(0xF6, G_io_apdu_length-G_io_apdu_offset);
-
-              // forge the first update binary, putting 0x00 0x00 into the RAPDU NDEF file length
-              G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_M24SR_C_APDU;
-              G_io_seproxyhal_spi_buffer[1] = 0;
-              G_io_seproxyhal_spi_buffer[2] = tx_len + 5 /*update binary header*/;
-              // Forge NDEF Select command
-              G_io_seproxyhal_spi_buffer[3] = 0x00;
-              G_io_seproxyhal_spi_buffer[4] = 0xD6;
-              G_io_seproxyhal_spi_buffer[5] = (G_io_apdu_offset + 2 /*NDEF file length*/)>>8;
-              G_io_seproxyhal_spi_buffer[6] = (G_io_apdu_offset + 2 /*NDEF file length*/);
-              G_io_seproxyhal_spi_buffer[7] = tx_len;
-              os_memmove(G_io_seproxyhal_spi_buffer+8, G_io_apdu_buffer+G_io_apdu_offset, tx_len);
-              G_io_apdu_offset += tx_len;
-
-              // wait for a NFC_RESPONSE
-              io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, G_io_seproxyhal_spi_buffer[2]+3);
-            }
-            break;
-
-          // update the NDEF length after all the content of the RAPDU has been written
-          case APDU_NFC_M24SR_FIRST:
-            // wait for last update binary reply 
-            rx_len = io_seproxyhal_spi_recv(G_io_seproxyhal_spi_buffer, sizeof(G_io_seproxyhal_spi_buffer), 0);
-
-            if (rx_len-3 != U2(G_io_seproxyhal_spi_buffer[1],G_io_seproxyhal_spi_buffer[2])) {
-              LOG("invalid TLV format\n");
-              goto invalid_apdu_packet;
-            }
-            // expect M24SR RAPDU with 0x90 0x00
-            if (G_io_seproxyhal_spi_buffer[0] != SEPROXYHAL_TAG_M24SR_RESPONSE_APDU_EVENT) {
-              if (!io_event(CHANNEL_SPI)) {
-                LOG("invalid NDEF file length UPDATE BINARY reply\n");
-                //goto invalid_apdu_packet;
-              }
-
-              // close the event if not done previously (by a display or whatever)
-              if (!io_seproxyhal_spi_is_status_sent()) {
-                  io_seproxyhal_general_status();
-              }
-              continue;
-            }
-            if (G_io_seproxyhal_spi_buffer[1] != 0 || G_io_seproxyhal_spi_buffer[2] != 2 || G_io_seproxyhal_spi_buffer[3] != 0x90 || G_io_seproxyhal_spi_buffer[4] != 0x00) {
-              LOG("invalid NDEF file length UPDATE BINARY reply\n");
-              goto invalid_apdu_packet;
-            }
-            goto break_send;
-#endif // HAVE_M24SR_NFC
         }
         continue;
 
@@ -1035,12 +944,12 @@ unsigned short io_exchange(unsigned char channel, unsigned short tx_len) {
     }
 
     // ensure ready to receive an event (after an apdu processing with asynch flag, it may occur if the channel is not correctly managed)
-    if (!io_seproxyhal_spi_is_status_sent()) {
-      io_seproxyhal_general_status();
-    }
 
     // until a new whole CAPDU is received
     for (;;) {
+      if (!io_seproxyhal_spi_is_status_sent()) {
+        io_seproxyhal_general_status();
+      }
 
       // wait until a SPI packet is available
       // NOTE: on ST31, dual wait ISO & RF (ISO instead of SPI)
@@ -1056,7 +965,12 @@ unsigned short io_exchange(unsigned char channel, unsigned short tx_len) {
         G_io_apdu_seq = 0;
 
       send_last_command:
-        io_seproxyhal_general_status();
+        continue;
+      }
+
+      // if an apdu is already ongoing, then discard packet as a new packet
+      if (G_io_apdu_media != IO_APDU_MEDIA_NONE) {
+        io_seproxyhal_handle_event();
         continue;
       }
 
@@ -1097,15 +1011,7 @@ unsigned short io_exchange(unsigned char channel, unsigned short tx_len) {
 
           // an apdu has been received, ack with mode commands (the reply at least)
           if (G_io_apdu_length > 0) {
-            /* we keep the hand, no need to inform (this disrupt the spi_is_status_sent check)
-            // acknowledge the write request (general status OK) and more command to follow (processing of the apdu)
-            G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_GENERAL_STATUS;
-            G_io_seproxyhal_spi_buffer[1] = 0;
-            G_io_seproxyhal_spi_buffer[2] = 2;
-            G_io_seproxyhal_spi_buffer[3] = SEPROXYHAL_TAG_GENERAL_STATUS_MORE_COMMAND>>8;
-            G_io_seproxyhal_spi_buffer[4] = SEPROXYHAL_TAG_GENERAL_STATUS_MORE_COMMAND;
-            io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 5);
-            */
+            // invalid return when reentered and an apdu is already under processing
             return G_io_apdu_length;
           }
           else {
@@ -1114,142 +1020,10 @@ unsigned short io_exchange(unsigned char channel, unsigned short tx_len) {
           break;
 #endif // HAVE_IO_USB
 
-
-#ifdef HAVE_M24SR_NFC
-        // event triggered upon write of the 
-        case SEPROXYHAL_TAG_M24SR_GPO_CHANGE_EVENT:
-          // ensure ready to process a NFC APDU (or accept GPO change during a NFC session)
-          if (G_io_apdu_state < APDU_NFC_M24SR && G_io_apdu_state != APDU_IDLE) {
-            LOG("invalid state for NFC over M24SR\n");
-            //THROW(INVALID_STATE);
-            goto invalid_apdu_packet;
-          }
-
-          // only process when the GPO notifies of a valid NDEF length being available
-          if (G_io_apdu_state == APDU_IDLE && G_io_seproxyhal_spi_buffer[3] == 1) {
-            // issue an APDU to read the first block content (containing the total apdu length) (read as much as possible)
-            G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_M24SR_C_APDU;
-            G_io_seproxyhal_spi_buffer[1] = 0;
-            G_io_seproxyhal_spi_buffer[2] = 7;
-            // Forge NDEF Select command
-            G_io_seproxyhal_spi_buffer[3] = 0x00;
-            G_io_seproxyhal_spi_buffer[4] = 0xA4;
-            G_io_seproxyhal_spi_buffer[5] = 0x00;
-            G_io_seproxyhal_spi_buffer[6] = 0x0C;
-            G_io_seproxyhal_spi_buffer[7] = 0x02;
-            G_io_seproxyhal_spi_buffer[8] = 0x00;
-            G_io_seproxyhal_spi_buffer[9] = 0x01;
-
-            // wait for a NFC_RESPONSE
-            G_io_apdu_state = APDU_NFC_M24SR_SELECT;
-            io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 10);
-          }
-          else {
-            // NDEF message rewritten while being updated ?? => error ?
-            LOG("unexpected GPO change\n");
-            unsigned char processed = io_event(CHANNEL_SPI);
-            // close the event if not done previously (by a display or whatever)
-            if (!io_seproxyhal_spi_is_status_sent()) {
-                io_seproxyhal_general_status();
-            }
-
-            if (!processed) {
-              goto invalid_apdu_packet;
-            }
-          }
-
-          break;
-        case SEPROXYHAL_TAG_M24SR_RESPONSE_APDU_EVENT:
-          // ensure ready to process a NFC APDU (shall have been started with GPO_CHANGE)
-          switch(G_io_apdu_state) {
-            case APDU_NFC_M24SR_SELECT:
-              // expect 0x90 0x00
-              if (G_io_seproxyhal_spi_buffer[1] != 0 || G_io_seproxyhal_spi_buffer[2] != 2 || G_io_seproxyhal_spi_buffer[3] != 0x90 || G_io_seproxyhal_spi_buffer[4] != 0x00) {
-                LOG("invalid NFC SELECT reply\n");
-                goto invalid_apdu_packet;
-              }
-
-              // read first part of the NDEF file, maximize throughput but to read only the total length
-
-              // issue an APDU to read the first block content (containing the total apdu length) (read as much as possible)
-              G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_M24SR_C_APDU;
-              G_io_seproxyhal_spi_buffer[1] = 0;
-              G_io_seproxyhal_spi_buffer[2] = 5;
-              // Forge NDEF Select command
-              G_io_seproxyhal_spi_buffer[3] = 0x00;
-              G_io_seproxyhal_spi_buffer[4] = 0xB0;
-              G_io_seproxyhal_spi_buffer[5] = 0x00;
-              G_io_seproxyhal_spi_buffer[6] = 0x00;
-              G_io_seproxyhal_spi_buffer[7] = M24SR_CHUNK_LENGTH;
-
-              // wait for a NFC_RESPONSE
-              G_io_apdu_state = APDU_NFC_M24SR_FIRST;
-              io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 8);
-              break;
-            case APDU_NFC_M24SR_FIRST:
-              // ensure read has ended with a positive status
-              if (G_io_seproxyhal_spi_buffer[rx_len-2] != 0x90 || G_io_seproxyhal_spi_buffer[rx_len-1] != 0x00) {
-                LOG("invalid READBINARY reply\n");
-                goto invalid_apdu_packet;
-              }
-
-              G_io_apdu_length = U2(G_io_seproxyhal_spi_buffer[3], G_io_seproxyhal_spi_buffer[4]);
-              rx_len = MIN(G_io_apdu_length, rx_len -3 /*TagLen*/ -2 /*SW*/ -2 /*total apdu length (NDEF length)*/);
-
-              // copy the first part of the apdu
-              os_memmove(G_io_apdu_buffer, G_io_seproxyhal_spi_buffer+3 /*TagLen*/ +2 /*NDEF length*/, rx_len);
-              G_io_apdu_offset = rx_len;
-
-              G_io_apdu_state = APDU_NFC_M24SR;
-              goto m24sr_continue_read_apdu;
-
-            case APDU_NFC_M24SR:
-              // ensure read has ended with a positive status
-              if (G_io_seproxyhal_spi_buffer[rx_len-2] != 0x90 || G_io_seproxyhal_spi_buffer[rx_len-1] != 0x00) {
-                LOG("invalid READBINARY reply (2)\n");
-                goto invalid_apdu_packet;
-              }
-
-              rx_len = MIN(G_io_apdu_length-G_io_apdu_offset, rx_len -3 /*TagLen*/ -2 /*SW*/);
-
-              // copy the first part of the apdu
-              os_memmove(G_io_apdu_buffer+G_io_apdu_offset, G_io_seproxyhal_spi_buffer+3 /*TagLen*/, rx_len);
-              G_io_apdu_offset += rx_len;
-
-            m24sr_continue_read_apdu:
-              // check if need more data to complete the CAPDU content
-              if (G_io_apdu_length == G_io_apdu_offset) {
-                // acknowledge the M24SR RAPDU EVENT (general status OK) and more command to follow (processing of the apdu)
-                G_io_apdu_media = IO_APDU_MEDIA_NFC;
-                return G_io_apdu_length;
-              }
-              else {
-                // fetch more data from the M24SR memory
-                G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_M24SR_C_APDU;
-                G_io_seproxyhal_spi_buffer[1] = 0;
-                G_io_seproxyhal_spi_buffer[2] = 5;
-                // Forge NDEF Select command
-                G_io_seproxyhal_spi_buffer[3] = 0x00;
-                G_io_seproxyhal_spi_buffer[4] = 0xB0;
-                G_io_seproxyhal_spi_buffer[5] = (G_io_apdu_offset +2 /*NDEF length*/)>>8;
-                G_io_seproxyhal_spi_buffer[6] = (G_io_apdu_offset +2 /*NDEF length*/);
-                G_io_seproxyhal_spi_buffer[7] = MIN(M24SR_CHUNK_LENGTH,G_io_apdu_length-G_io_apdu_offset);
-                io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 8);
-              }
-              break;
-            default:
-              LOG("invalid state for M24SR RAPDU EVENT\n");
-              goto invalid_apdu_packet;
-          }
-          break;
-#endif // HAVE_M24SR_NFC
         default:
           // tell the application that a non-apdu packet has been received
           io_event(CHANNEL_SPI);
-          if (!io_seproxyhal_spi_is_status_sent()) {
-            io_seproxyhal_general_status();
-          }
-          break;
+          continue;
 
       }
     }
@@ -1267,13 +1041,14 @@ unsigned int os_ux_blocking(bolos_ux_params_t* params) {
   while(ret == BOLOS_UX_IGNORE 
      || ret == BOLOS_UX_CONTINUE) {
 
-    // send general status before receiving next event
-    if (!io_seproxyhal_spi_is_status_sent()) {
-      io_seproxyhal_general_status();
-    }
 
     // process events
     for (;;) {
+      // send general status before receiving next event
+      if (!io_seproxyhal_spi_is_status_sent()) {
+        io_seproxyhal_general_status();
+      }
+
       /*unsigned int rx_len = */io_seproxyhal_spi_recv(G_io_seproxyhal_spi_buffer, sizeof(G_io_seproxyhal_spi_buffer), 0);
 
       switch (G_io_seproxyhal_spi_buffer[0]) {
@@ -1288,10 +1063,6 @@ unsigned int os_ux_blocking(bolos_ux_params_t* params) {
         default:
           // if malformed, then a stall is likely to occur
           if (io_seproxyhal_handle_event()) {
-            // avoid twice if error
-            if (!io_seproxyhal_spi_is_status_sent()) {
-              io_seproxyhal_general_status();
-            }
             continue;
           }
           break;
@@ -1323,5 +1094,372 @@ void screen_printc(unsigned char c) {
   buf[0] = 0; // consume tag to avoid misinterpretation (due to IO_CACHE)
 #endif // IO_SEPROXYHAL_DEBUG
 }
+
+// current ux_menu context (could be pluralised if multiple nested levels of menu are required within bolos_ux for example)
+ux_menu_state_t ux_menu;
+
+const bagl_element_t ux_menu_elements[] = {
+  // erase
+  {{BAGL_RECTANGLE                      , 0x80,   0,   0, 128,  32, 0, 0, BAGL_FILL, 0x000000, 0xFFFFFF, 0, 0}, NULL, 0, 0, 0, NULL, NULL, NULL},
+
+  // icons
+  {{BAGL_ICON                           , 0x81,   3,  14,   7,   4, 0, 0, 0        , 0xFFFFFF, 0x000000, 0, BAGL_GLYPH_ICON_UP   }, NULL, 0, 0, 0, NULL, NULL, NULL },
+  {{BAGL_ICON                           , 0x82, 118,  14,   7,   4, 0, 0, 0        , 0xFFFFFF, 0x000000, 0, BAGL_GLYPH_ICON_DOWN }, NULL, 0, 0, 0, NULL, NULL, NULL },
+  
+
+  // previous setting name
+  {{BAGL_LABELINE                       , 0x41,  14,   3, 100,  12, 0, 0, 0        , 0xFFFFFF, 0x000000, BAGL_FONT_OPEN_SANS_REGULAR_11px|BAGL_FONT_ALIGNMENT_CENTER, 0  }, NULL, 0, 0, 0, NULL, NULL, NULL },
+  // next setting name
+  {{BAGL_LABELINE                       , 0x42,  14,  35, 100,  12, 0, 0, 0        , 0xFFFFFF, 0x000000, BAGL_FONT_OPEN_SANS_REGULAR_11px|BAGL_FONT_ALIGNMENT_CENTER, 0  }, NULL, 0, 0, 0, NULL, NULL, NULL },
+
+  // current setting (x to be adjusted if icon is present etc)
+  {{BAGL_ICON                           , 0x10,  14,   9,   0,   0, 0, 0, 0        , 0xFFFFFF, 0x000000, 0, 0  }, NULL, 0, 0, 0, NULL, NULL, NULL },
+  // single line layout
+  {{BAGL_LABELINE                       , 0x20,  14,  19, 100,  12, 0, 0, 0        , 0xFFFFFF, 0x000000, BAGL_FONT_OPEN_SANS_EXTRABOLD_11px|BAGL_FONT_ALIGNMENT_CENTER, 0  }, NULL, 0, 0, 0, NULL, NULL, NULL },
+
+  // 2 lines layout + icon
+  {{BAGL_LABELINE                       , 0x21,  14,  12, 100,  12, 0, 0, 0        , 0xFFFFFF, 0x000000, BAGL_FONT_OPEN_SANS_EXTRABOLD_11px|BAGL_FONT_ALIGNMENT_CENTER, 0  }, NULL, 0, 0, 0, NULL, NULL, NULL },
+  {{BAGL_LABELINE                       , 0x22,  14,  26, 100,  12, 0, 0, 0        , 0xFFFFFF, 0x000000, BAGL_FONT_OPEN_SANS_EXTRABOLD_11px|BAGL_FONT_ALIGNMENT_CENTER, 0  }, NULL, 0, 0, 0, NULL, NULL, NULL },
+
+};
+
+const ux_menu_entry_t* ux_menu_get_entry (unsigned int entry_idx) {
+  if (ux_menu.menu_iterator) {
+    return ux_menu.menu_iterator(entry_idx);
+  } 
+  return &ux_menu.menu_entries[entry_idx];
+} 
+
+const bagl_element_t* ux_menu_element_preprocessor(const bagl_element_t* element) {
+  //todo avoid center alignment when text_x or icon_x AND text_x are not 0
+  os_memmove(&ux_menu.tmp_element, element, sizeof(bagl_element_t));
+
+  // ask the current entry first, to setup other entries
+  const ux_menu_entry_t* current_entry = ux_menu_get_entry(ux_menu.current_entry);
+
+  const ux_menu_entry_t* previous_entry = NULL;
+  if (ux_menu.current_entry) {
+    previous_entry = ux_menu_get_entry(ux_menu.current_entry-1);
+  }
+  const ux_menu_entry_t* next_entry = NULL;
+  if (ux_menu.current_entry < ux_menu.menu_entries_count-1) {
+    next_entry = ux_menu_get_entry(ux_menu.current_entry+1);
+  }
+
+  switch(element->component.userid) {
+    case 0x81:
+      if (ux_menu.current_entry == 0) {
+        return NULL;
+      }
+      break;
+    case 0x82:
+      if (ux_menu.current_entry == ux_menu.menu_entries_count-1) {
+        return NULL;
+      }
+      break;
+    // previous setting name
+    case 0x41:
+      if (current_entry->line2 != NULL 
+        || current_entry->icon != NULL
+        || ux_menu.current_entry == 0
+        || ux_menu.menu_entries_count == 1 
+        || previous_entry->icon != NULL
+        || previous_entry->line2 != NULL) {
+        return 0;
+      }
+      ux_menu.tmp_element.text = previous_entry->line1;
+      break;
+    // next setting name
+    case 0x42:
+      if (current_entry->line2 != NULL 
+        || current_entry->icon != NULL
+        || ux_menu.current_entry == ux_menu.menu_entries_count-1
+        || ux_menu.menu_entries_count == 1
+        || next_entry->icon != NULL) {
+        return NULL;
+      }
+      ux_menu.tmp_element.text = next_entry->line1;
+      break;
+    case 0x10:
+      if (current_entry->icon == NULL) {
+        return NULL;
+      }
+      ux_menu.tmp_element.text = (const char*)current_entry->icon;
+      if (current_entry->icon_x) {
+        ux_menu.tmp_element.component.x = current_entry->icon_x;
+      }
+      break;
+    case 0x20:
+      if (current_entry->line2 != NULL) {
+        return NULL;
+      }
+      ux_menu.tmp_element.text = current_entry->line1;
+      goto adjust_text_x;
+    case 0x21:
+      if (current_entry->line2 == NULL) {
+        return NULL;
+      }
+      ux_menu.tmp_element.text = current_entry->line1;
+      goto adjust_text_x;
+    case 0x22:
+      if (current_entry->line2 == NULL) {
+        return NULL;
+      }
+      ux_menu.tmp_element.text = current_entry->line2;
+    adjust_text_x:
+      if (current_entry->text_x) {
+        ux_menu.tmp_element.component.x = current_entry->text_x;
+        // discard the 'center' flag
+        ux_menu.tmp_element.component.font_id = BAGL_FONT_OPEN_SANS_EXTRABOLD_11px;
+      }
+      break;
+  }
+  // ensure prepro agrees to the element to be displayed
+  if (ux_menu.menu_entry_preprocessor) {
+    // menu is denied by the menu entry preprocessor
+    return ux_menu.menu_entry_preprocessor(current_entry, &ux_menu.tmp_element);
+  }
+
+  return &ux_menu.tmp_element;
+}
+
+unsigned int ux_menu_elements_button (unsigned int button_mask, unsigned int button_mask_counter) {
+  UNUSED(button_mask_counter);
+
+  const ux_menu_entry_t* current_entry = ux_menu_get_entry(ux_menu.current_entry);
+
+  switch (button_mask) {
+    // enter menu or exit menu
+    case BUTTON_EVT_RELEASED|BUTTON_LEFT|BUTTON_RIGHT:
+      // menu is priority 1
+      if (current_entry->menu) {
+        // use userid as the pointer to current entry in the parent menu
+        UX_MENU_DISPLAY(current_entry->userid, (const ux_menu_entry_t*)PIC(current_entry->menu), ux_menu.menu_entry_preprocessor);
+        return 0;
+      }
+      // else callback
+      else if (current_entry->callback) {
+        ((ux_menu_callback_t)PIC(current_entry->callback))(current_entry->userid);
+        return 0;
+      }
+      break;
+
+    case BUTTON_EVT_FAST|BUTTON_LEFT:
+    case BUTTON_EVT_RELEASED|BUTTON_LEFT:
+      // entry 0 is the number of entries in the menu list
+      if (ux_menu.current_entry == 0) {
+        return 0;
+      }
+      ux_menu.current_entry--;
+      goto redraw;
+
+    case BUTTON_EVT_FAST|BUTTON_RIGHT:
+    case BUTTON_EVT_RELEASED|BUTTON_RIGHT:
+      // entry 0 is the number of entries in the menu list
+      if (ux_menu.current_entry >= ux_menu.menu_entries_count-1) {
+        return 0;
+      }
+      ux_menu.current_entry++;
+    redraw:
+#ifdef HAVE_BOLOS_UX
+      screen_display_init(0);
+#else
+      UX_REDISPLAY();
+#endif
+      return 0;
+  }
+  return 1;
+}
+
+const ux_menu_entry_t UX_MENU_END_ENTRY = UX_MENU_END;
+
+void ux_menu_display(unsigned int current_entry, 
+                     const ux_menu_entry_t* menu_entries,
+                     ux_menu_preprocessor_t menu_entry_preprocessor) {
+  // reset to first entry
+  ux_menu.menu_entries_count = 0;
+
+  // count entries
+  if (menu_entries) {
+    for(;;) {
+      if (os_memcmp(&menu_entries[ux_menu.menu_entries_count], &UX_MENU_END_ENTRY, sizeof(ux_menu_entry_t)) == 0) {
+        break;
+      }
+      ux_menu.menu_entries_count++;
+    }
+  }
+
+  if (current_entry != UX_MENU_UNCHANGED_ENTRY) {
+    ux_menu.current_entry = current_entry;
+    if (ux_menu.current_entry > ux_menu.menu_entries_count) {
+      ux_menu.current_entry = 0;
+    }
+  }
+  ux_menu.menu_entries = menu_entries;
+  ux_menu.menu_entry_preprocessor = menu_entry_preprocessor;
+  ux_menu.menu_iterator = NULL;
+
+#ifdef HAVE_BOLOS_UX
+  screen_state_init(0);
+
+  // static dashboard content
+  G_bolos_ux_context.screen_stack[0].element_arrays[0].element_array = ux_menu_elements;
+  G_bolos_ux_context.screen_stack[0].element_arrays[0].element_array_count = ARRAYLEN(ux_menu_elements);
+  G_bolos_ux_context.screen_stack[0].element_arrays_count = 1;
+
+  // ensure the string_buffer will be set before each button is displayed
+  G_bolos_ux_context.screen_stack[0].screen_before_element_display_callback = ux_menu_element_preprocessor;
+  G_bolos_ux_context.screen_stack[0].button_push_callback = ux_menu_elements_button;
+
+  screen_display_init(0);
+#else
+  // display the menu current entry
+  UX_DISPLAY(ux_menu_elements, ux_menu_element_preprocessor);
+#endif
+}
+
+
+
+
+ux_turner_state_t ux_turner;
+
+const bagl_element_t ux_turner_elements[] = {
+  // erase
+  {{BAGL_RECTANGLE                      , 0x00,   0,   0, 128,  32, 0, 0, BAGL_FILL, 0x000000, 0xFFFFFF, 0, 0}, NULL, 0, 0, 0, NULL, NULL, NULL},
+
+  // icons
+  {{BAGL_ICON                           , 0x00,   3,  12,   7,   7, 0, 0, 0        , 0xFFFFFF, 0x000000, 0, BAGL_GLYPH_ICON_CROSS  }, NULL, 0, 0, 0, NULL, NULL, NULL },
+  {{BAGL_ICON                           , 0x00, 117,  13,   8,   6, 0, 0, 0        , 0xFFFFFF, 0x000000, 0, BAGL_GLYPH_ICON_CHECK  }, NULL, 0, 0, 0, NULL, NULL, NULL },
+
+  // current setting (x to be adjusted if icon is present etc)
+  {{BAGL_ICON                           , 0x03,   0,   9,  14,  14, 0, 0, 0        , 0xFFFFFF, 0x000000, 0, 0  }, NULL, 0, 0, 0, NULL, NULL, NULL },
+
+  // single line layout
+  {{BAGL_LABELINE                       , 0x04,   0,  19, 128,  32, 0, 0, 0        , 0xFFFFFF, 0x000000, BAGL_FONT_OPEN_SANS_REGULAR_11px|BAGL_FONT_ALIGNMENT_CENTER, 0  }, NULL, 0, 0, 0, NULL, NULL, NULL },
+  // 2 lines layout + icon
+  {{BAGL_LABELINE                       , 0x05,   0,  12, 128,  32, 0, 0, 0        , 0xFFFFFF, 0x000000, BAGL_FONT_OPEN_SANS_REGULAR_11px|BAGL_FONT_ALIGNMENT_CENTER, 0  }, NULL, 0, 0, 0, NULL, NULL, NULL },
+  {{BAGL_LABELINE                       , 0x06,   0,  26, 128,  32, 0, 0, 0        , 0xFFFFFF, 0x000000, BAGL_FONT_OPEN_SANS_REGULAR_11px|BAGL_FONT_ALIGNMENT_CENTER, 0  }, NULL, 0, 0, 0, NULL, NULL, NULL },
+
+};
+
+const bagl_element_t* ux_turner_element_preprocessor(const bagl_element_t* element) {
+  //todo avoid center alignment when text_x or icon_x AND text_x are not 0
+  os_memmove(&ux_turner.tmp_element, element, sizeof(bagl_element_t));
+
+  switch(element->component.userid) {
+
+    case 0x03:
+      if (ux_turner.steps[ux_turner.current_step].icon == NULL) {
+        return NULL;
+      }
+      ux_turner.tmp_element.text = (const char*)ux_turner.steps[ux_turner.current_step].icon;
+      if (ux_turner.steps[ux_turner.current_step].icon_x) {
+        ux_turner.tmp_element.component.x = ux_turner.steps[ux_turner.current_step].icon_x;
+      }
+      break;
+    case 0x04:
+      if (ux_turner.steps[ux_turner.current_step].line2 != NULL) {
+        return NULL;
+      }
+      if (ux_turner.steps[ux_turner.current_step].fontid1) {
+        ux_turner.tmp_element.component.font_id = ux_turner.steps[ux_turner.current_step].fontid1;
+      }
+      ux_turner.tmp_element.text = ux_turner.steps[ux_turner.current_step].line1;
+      goto adjust_text_x;
+    case 0x05:
+      if (ux_turner.steps[ux_turner.current_step].line2 == NULL) {
+        return NULL;
+      }
+      if (ux_turner.steps[ux_turner.current_step].fontid1) {
+        ux_turner.tmp_element.component.font_id = ux_turner.steps[ux_turner.current_step].fontid1;
+      }
+      ux_turner.tmp_element.text = ux_turner.steps[ux_turner.current_step].line1;
+      goto adjust_text_x;
+    case 0x06:
+      if (ux_turner.steps[ux_turner.current_step].line2 == NULL) {
+        return NULL;
+      }
+      if (ux_turner.steps[ux_turner.current_step].fontid2) {
+        ux_turner.tmp_element.component.font_id = ux_turner.steps[ux_turner.current_step].fontid2;
+      }
+      ux_turner.tmp_element.text = ux_turner.steps[ux_turner.current_step].line2;
+    adjust_text_x:
+      if (ux_turner.steps[ux_turner.current_step].text_x) {
+        ux_turner.tmp_element.component.x = ux_turner.steps[ux_turner.current_step].text_x;
+      }
+      break;
+  }
+  return &ux_turner.tmp_element;
+}
+
+unsigned int ux_turner_elements_button (unsigned int button_mask, unsigned int button_mask_counter) {
+  return ux_turner.button_callback(button_mask, button_mask_counter);
+}
+
+#ifdef HAVE_BOLOS_UX
+unsigned int ux_turner_ticker_bolos_ux(unsigned int ignored) {
+  UNUSED(ignored);
+  // switch to next step
+  ux_turner.current_step=(ux_turner.current_step+1)%ux_turner.steps_count;
+  // setup the next change
+  G_bolos_ux_context.screen_stack[0].ticker_value = ux_turner.steps[ux_turner.current_step].next_step_ms;
+  G_bolos_ux_context.screen_stack[0].ticker_interval = ux_turner.steps[ux_turner.current_step].next_step_ms;
+  screen_display_init(0);
+  return 0;
+}
+#else
+void ux_turner_ticker(unsigned int elapsed_ms) {
+  ux_turner.elapsed_ms -= MIN(ux_turner.elapsed_ms, elapsed_ms);
+  if (ux_turner.elapsed_ms == 0) {
+    // switch to next step
+    ux_turner.current_step=(ux_turner.current_step+1)%ux_turner.steps_count;
+    ux_turner.elapsed_ms = ux_turner.steps[ux_turner.current_step].next_step_ms;
+    UX_DISPLAY(ux_turner_elements, ux_turner_element_preprocessor);
+  }
+}
+#endif // HAVE_BOLOS_UX
+
+void ux_turner_display(unsigned int current_step, 
+                     const ux_turner_step_t* steps,
+                     unsigned int steps_count,
+                     button_push_callback_t button_callback) {
+  // reset to first entry
+  ux_turner.steps_count = steps_count;
+
+  if (current_step != UX_TURNER_UNCHANGED_ENTRY) {
+    ux_turner.current_step = current_step;
+    if (ux_turner.current_step > ux_turner.steps_count) {
+      ux_turner.current_step = 0;
+    }
+  }
+  ux_turner.steps = steps;
+
+  ux_turner.button_callback = button_callback;
+
+#ifdef HAVE_BOLOS_UX
+  screen_state_init(0);
+
+  // static dashboard content
+  G_bolos_ux_context.screen_stack[0].element_arrays[0].element_array = ux_turner_elements;
+  G_bolos_ux_context.screen_stack[0].element_arrays[0].element_array_count = ARRAYLEN(ux_turner_elements);
+  G_bolos_ux_context.screen_stack[0].element_arrays_count = 1;
+
+  // ensure the string_buffer will be set before each button is displayed
+  G_bolos_ux_context.screen_stack[0].screen_before_element_display_callback = ux_turner_element_preprocessor;
+  G_bolos_ux_context.screen_stack[0].button_push_callback = ux_turner_elements_button;
+  G_bolos_ux_context.screen_stack[0].ticker_value = ux_turner.steps[ux_turner.current_step].next_step_ms;
+  G_bolos_ux_context.screen_stack[0].ticker_interval = ux_turner.steps[ux_turner.current_step].next_step_ms;
+  G_bolos_ux_context.screen_stack[0].ticker_callback = ux_turner_ticker_bolos_ux;
+
+  screen_display_init(0);
+#else
+  ux_turner.elapsed_ms = ux_turner.steps[ux_turner.current_step].next_step_ms;
+  // display the menu current entry
+  UX_DISPLAY(ux_turner_elements, ux_turner_element_preprocessor);
+#endif
+}
+
+
+
 
 #endif // OS_IO_SEPROXYHAL

@@ -1,6 +1,6 @@
 /*******************************************************************************
 *   Ledger Blue - Non secure firmware
-*   (c) 2016, 2017 Ledger
+*   (c) 2016 Ledger
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -108,7 +108,7 @@
 #define SEPROXYHAL_TAG_BLE_NOTIFY_INDICATE 0x48
 #define SEPROXYHAL_TAG_BATTERY_CHARGE 0x49 // <>
 //#define SEPROXYHAL_TAG_SCREEN_DISPLAY              0x4A // wait for
-//display_event after sent
+// display_event after sent
 #define SEPROXYHAL_TAG_DEVICE_OFF 0x4B
 #define SEPROXYHAL_TAG_MORE_TIME 0x4C
 #define SEPROXYHAL_TAG_M24SR_C_APDU 0x4D
@@ -147,10 +147,10 @@
 #define SEPROXYHAL_TAG_GENERAL_STATUS 0x60
 #define SEPROXYHAL_TAG_GENERAL_STATUS_LAST_COMMAND 0x0000
 //#define SEPROXYHAL_TAG_GENERAL_STATUS_MORE_COMMAND 0x0001 // it's a status,
-//but it shall be a command instead to avoid perturbating the simple seproxyhal
-//bus logic
+// but it shall be a command instead to avoid perturbating the simple seproxyhal
+// bus logic
 //#define SEPROXYHAL_TAG_GENERAL_STATUS_ERROR        0x0002 // shall be a
-//command instead
+// command instead
 #define SEPROXYHAL_TAG_PAIRING_STATUS 0x61
 #define SEPROXYHAL_TAG_BLE_READ_RESPONSE_STATUS 0x62
 #define SEPROXYHAL_TAG_NFC_READ_RESPONSE_STATUS 0x63

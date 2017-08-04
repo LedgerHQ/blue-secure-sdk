@@ -230,29 +230,21 @@ typedef struct cx_ripemd160_s cx_ripemd160_t;
 
 struct cx_sha256_s {
     struct cx_hash_header_s header;
-#if defined(CX_SHA256_NES_LIB)
-    tNesLibSHA256State state;
-#else
     // 64 bytes per block
     int blen;
     unsigned char block[64];
     // eight 32bits words
     unsigned char acc[8 * 4];
-#endif
 };
 typedef struct cx_sha256_s cx_sha256_t;
 
 struct cx_sha512_s {
     struct cx_hash_header_s header;
-#if defined(CX_SHA512_NES_LIB)
-    tNesLibSHA512State state;
-#else
     // 128 bytes per block
     unsigned int blen;
     unsigned char block[128];
     // eight 64bits words
     unsigned char acc[8 * 8];
-#endif
 };
 typedef struct cx_sha512_s cx_sha512_t;
 

@@ -48,7 +48,7 @@
 #define USBD_VID                      0x2C97
 #if TARGET_ID == 0x31000002 // blue
 #define USBD_PID                      0x0000
-const uint8_t const USBD_PRODUCT_FS_STRING[] = {
+static const uint8_t const USBD_PRODUCT_FS_STRING[] = {
   4*2+2,
   USB_DESC_TYPE_STRING,
   'B', 0,
@@ -59,7 +59,7 @@ const uint8_t const USBD_PRODUCT_FS_STRING[] = {
 
 #elif TARGET_ID == 0x31100002 // nano s
 #define USBD_PID                      0x0001
-const uint8_t const USBD_PRODUCT_FS_STRING[] = {
+static const uint8_t const USBD_PRODUCT_FS_STRING[] = {
   6*2+2,
   USB_DESC_TYPE_STRING,
   'N', 0,
@@ -71,7 +71,7 @@ const uint8_t const USBD_PRODUCT_FS_STRING[] = {
 };
 #elif TARGET_ID == 0x31200002 // aramis
 #define USBD_PID                      0x0002
-const uint8_t const USBD_PRODUCT_FS_STRING[] = {
+static const uint8_t const USBD_PRODUCT_FS_STRING[] = {
   6*2+2,
   USB_DESC_TYPE_STRING,
   'A', 0,
@@ -87,7 +87,7 @@ const uint8_t const USBD_PRODUCT_FS_STRING[] = {
 
 
 /* USB Standard Device Descriptor */
-__ALIGN_BEGIN const uint8_t const USBD_DeviceQualifierDesc[] __ALIGN_END =
+static __ALIGN_BEGIN const uint8_t const USBD_DeviceQualifierDesc[] __ALIGN_END =
 {
   USB_LEN_DEV_QUALIFIER_DESC,
   USB_DESC_TYPE_DEVICE_QUALIFIER,
@@ -112,10 +112,11 @@ static const uint8_t const USBD_LangIDDesc[]=
 
 static const uint8_t const USB_SERIAL_STRING[] =
 {
-  3*2+2,      
+  4*2+2,      
   USB_DESC_TYPE_STRING,
   '0', 0,
-  '.', 0,
+  '0', 0,
+  '0', 0,
   '1', 0,
 };
 
