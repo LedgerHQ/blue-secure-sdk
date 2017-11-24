@@ -303,8 +303,6 @@ extern ux_state_t ux;
                 element = &ux.elements[ux.elements_current];                   \
             }                                                                  \
             io_seproxyhal_display(element);                                    \
-            ux.elements_current++;                                             \
-            break;                                                             \
         }                                                                      \
         ux.elements_current++;                                                 \
     }
