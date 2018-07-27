@@ -1,6 +1,6 @@
 /*******************************************************************************
 *   Ledger Blue - Secure firmware
-*   (c) 2016, 2017 Ledger
+*   (c) 2016, 2017, 2018 Ledger
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -100,7 +100,7 @@ bagl_label_roundtrip_duration_ms_buf(const bagl_element_t *e, const char *str,
 
 // default version to be called by ::io_seproxyhal_display if nothing to be done
 // by the application
-void io_seproxyhal_display_default(bagl_element_t *element);
+void io_seproxyhal_display_default(const bagl_element_t *element);
 #endif // HAVE_BAGL
 
 extern unsigned char G_io_seproxyhal_spi_buffer[IO_SEPROXYHAL_BUFFER_SIZE_B];
@@ -109,8 +109,8 @@ SYSCALL void io_seproxyhal_spi_send(const unsigned char *buffer PLENGTH(length),
                                     unsigned short length);
 
 // return 1 if the previous seproxyhal exchange has been terminated with a
-// status (packet which starts with 011x xxxx)
-// else 0, which means the exchange needs to be closed.
+// status (packet which starts with 011x xxxx) else 0, which means the exchange
+// needs to be closed.
 SYSCALL unsigned int io_seproxyhal_spi_is_status_sent(void);
 
 // not to be called by application (application is triggered using io_event
@@ -138,6 +138,10 @@ void io_seproxyhal_init_button(void);
 unsigned short io_exchange_al(unsigned char channel_and_flags,
                               unsigned short tx_len);
 
+// Allow application to overload how the io_exchange function automatically
+// replies to get app name and version
+unsigned int os_io_seproxyhal_get_app_name_and_version(void);
+
 // for delegation of Native NFC / USB
 unsigned char io_event(unsigned char channel);
 
@@ -160,6 +164,7 @@ void os_io_seproxyhal_general_status_processing(void);
 
 // legacy function to send over EP 0x82
 void io_usb_send_apdu_data(unsigned char *buffer, unsigned short length);
+void io_usb_send_apdu_data_ep0x83(unsigned char *buffer, unsigned short length);
 
 // trigger a transfer over an usb endpoint and waits for it to occur if timeout
 // is != 0
@@ -167,6 +172,13 @@ void io_usb_send_ep(unsigned int ep, unsigned char *buffer,
                     unsigned short length, unsigned int timeout);
 
 void io_usb_ccid_reply(unsigned char *buffer, unsigned short length);
+
+#define NO_TIMEOUT (0UL)
+// Function that allow applications to modulate the APDU handling timeout
+// timeout is defaulty disabled.
+// having an APDU handling timeout is useful to solve multiple media
+// interactions.
+void io_set_timeout(unsigned int timeout);
 
 typedef enum {
     APDU_IDLE,
@@ -178,6 +190,9 @@ typedef enum {
     APDU_NFC_M24SR_RAPDU,
     APDU_USB_HID,
     APDU_USB_CCID,
+    APDU_U2F,
+    APDU_RAW,
+    APDU_USB_WEBUSB,
 } io_apdu_state_e;
 
 extern volatile io_apdu_state_e G_io_apdu_state; // by default
@@ -186,10 +201,6 @@ extern volatile unsigned short
 extern volatile unsigned short G_io_apdu_length; // total length to be received
 extern volatile unsigned short G_io_apdu_seq;
 extern volatile io_apdu_media_t G_io_apdu_media;
-
-#ifdef HAVE_USB
-extern unsigned int usb_ep_xfer_len[7];
-#endif // HAVE_USB
 
 #ifdef HAVE_BLE_APDU
 void BLE_protocol_recv(unsigned char data_length, unsigned char *att_data);
@@ -202,6 +213,11 @@ void BLE_protocol_recv(unsigned char data_length, unsigned char *att_data);
 char BLE_protocol_send(unsigned char *response_apdu,
                        unsigned short response_apdu_length);
 #endif // HAVE_BLE_APDU
+
+#ifdef HAVE_IO_U2F
+#include "u2f_service.h"
+extern u2f_service_t G_io_u2f;
+#endif // HAVE_IO_U2F
 
 /**
  *  Ledger Bluetooth Low Energy APDU Protocol
@@ -265,6 +281,9 @@ typedef struct ux_state_s {
     bagl_element_callback_t
         elements_preprocessor; // called before an element is displayed
     button_push_callback_t button_push_handler;
+#ifdef HAVE_TINY_COROUTINE
+    unsigned int return_value; // value replied by an asynch user consent
+#endif                         // HAVE_TINY_COROUTINE
     unsigned int callback_interval_ms;
     bolos_ux_params_t params;
 } ux_state_t;
@@ -283,7 +302,7 @@ extern ux_state_t ux;
     ux.params.len = 0;                                                         \
     ux.params.u.status_bar.fgcolor = fg;                                       \
     ux.params.u.status_bar.bgcolor = bg;                                       \
-    os_ux(&ux.params);
+    os_ux_blocking(&ux.params);
 
 /**
  * Request displaying the next element in the UX structure.
@@ -297,9 +316,8 @@ extern ux_state_t ux;
         const bagl_element_t *element = &ux.elements[ux.elements_current];     \
         if (!ux.elements_preprocessor ||                                       \
             (element = ux.elements_preprocessor(element))) {                   \
-            if ((unsigned int)element ==                                       \
-                1) { /*backward compat with coding to avoid smashing           \
-                        everything*/                                           \
+            if ((unsigned int)element == 1) { /*backward compat with coding to \
+                                                 avoid smashing everything*/   \
                 element = &ux.elements[ux.elements_current];                   \
             }                                                                  \
             io_seproxyhal_display(element);                                    \
@@ -309,25 +327,41 @@ extern ux_state_t ux;
 
 /**
  * Request a wake up of the device (backlight, pin lock screen, ...) to display
- * a new interface to the user
+ * a new interface to the user. Wake up prevent both autolock and power off
+ * features. Therefore, security wise, this function shall only be called to
+ * request direct user interaction.
  */
 #define UX_WAKE_UP()                                                           \
     ux.params.ux_id = BOLOS_UX_WAKE_UP;                                        \
     ux.params.len = 0;                                                         \
-    ux.params.len = os_ux(&ux.params);
+    ux.params.len = os_ux(&ux.params);                                         \
+    ux_check_status(ux.params.len);
 
 /**
  * Force redisplay of the screen from the given index in the screen's element
  * array
  */
+#ifndef HAVE_TINY_COROUTINE
 #define UX_REDISPLAY_IDX(index)                                                \
     io_seproxyhal_init_ux();                                                   \
+    io_seproxyhal_init_button(); /*ensure to avoid release of a button from a  \
+                                    nother screen to mess up with the          \
+                                    redisplayed screen */                      \
     ux.elements_current = index;                                               \
-    /* REDRAW is redisplay already */                                          \
+    /* REDRAW is redisplay already, use os_ux retrun value to check */         \
     if (ux.params.len != BOLOS_UX_IGNORE &&                                    \
         ux.params.len != BOLOS_UX_CONTINUE) {                                  \
         UX_DISPLAY_NEXT_ELEMENT();                                             \
     }
+#else // HAVE_TINY_COROUTINE
+#define UX_REDISPLAY_IDX(index)                                                \
+    io_seproxyhal_init_ux();                                                   \
+    io_seproxyhal_init_button();                                               \
+    if (ux.params.len != BOLOS_UX_IGNORE &&                                    \
+        ux.params.len != BOLOS_UX_CONTINUE) {                                  \
+        ux.elements_current = index;                                           \
+    }
+#endif // HAVE_TINY_COROUTINE
 
 /**
  * Redisplay all elements of the screen
@@ -357,8 +391,8 @@ extern ux_state_t ux;
     ux.params.ux_id = BOLOS_UX_EVENT;                                          \
     ux.params.len = 0;                                                         \
     ux.params.len = os_ux(&ux.params);                                         \
+    ux_check_status(ux.params.len);                                            \
     if (ux.params.len == BOLOS_UX_REDRAW) {                                    \
-        UX_WAKE_UP();                                                          \
         UX_REDISPLAY();                                                        \
     } else if (!ignoring_app_if_ux_busy ||                                     \
                (ux.params.len != BOLOS_UX_IGNORE &&                            \
@@ -366,25 +400,37 @@ extern ux_state_t ux;
         callback                                                               \
     }
 
+#define UX_CONTINUE_DISPLAY_APP(displayed_callback)                            \
+    UX_DISPLAY_NEXT_ELEMENT();                                                 \
+    /* all items have been displayed */                                        \
+    if (ux.elements_current >= ux.elements_count &&                            \
+        !io_seproxyhal_spi_is_status_sent()) {                                 \
+        displayed_callback                                                     \
+    }
+
 /**
  * Process display processed event (by the os_ux or by the application code)
  */
 #define UX_DISPLAYED_EVENT(displayed_callback)                                 \
-    UX_FORWARD_EVENT(                                                          \
-        {                                                                      \
-            UX_DISPLAY_NEXT_ELEMENT();                                         \
-            /* all items have been displayed */                                \
-            if (ux.elements_current >= ux.elements_count &&                    \
-                !io_seproxyhal_spi_is_status_sent()) {                         \
-                displayed_callback                                             \
-            }                                                                  \
-        },                                                                     \
-        1)
+    UX_FORWARD_EVENT({ UX_CONTINUE_DISPLAY_APP(displayed_callback); }, 1)
 
 /**
  * Deprecated version to be removed
  */
 #define UX_DISPLAYED() (ux.elements_current >= ux.elements_count)
+
+/**
+ * Macro to process sequentially display a screen. The call finished when the UX
+ * is completely displayed.
+ */
+#define UX_WAIT_DISPLAYED()                                                    \
+    do {                                                                       \
+        UX_DISPLAY_NEXT_ELEMENT();                                             \
+        io_seproxyhal_spi_recv(G_io_seproxyhal_spi_buffer,                     \
+                               sizeof(G_io_seproxyhal_spi_buffer), 0);         \
+        io_seproxyhal_handle_event();                                          \
+        /* all items have been displayed */                                    \
+    } while (!UX_DISPLAYED());
 
 /**
  * Process button push events. Application's button event handler is called only
@@ -397,6 +443,7 @@ extern ux_state_t ux;
                 io_seproxyhal_button_push(ux.button_push_handler,              \
                                           seph_packet[3] >> 1);                \
             }                                                                  \
+            UX_CONTINUE_DISPLAY_APP({});                                       \
         },                                                                     \
         1);
 
@@ -412,13 +459,14 @@ extern ux_state_t ux;
                 (seph_packet[4] << 8) | (seph_packet[5] & 0xFF),               \
                 (seph_packet[6] << 8) | (seph_packet[7] & 0xFF),               \
                 seph_packet[3], ux.elements_preprocessor);                     \
+            UX_CONTINUE_DISPLAY_APP({});                                       \
         },                                                                     \
         1);
 
 /**
  * forward the ticker_event to the os ux handler. Ticker event callback is
- * always called whatever the return code of the ux app.
- * Ticker event interval is assumed to be 100 ms.
+ * always called whatever the return code of the ux app. Ticker event interval
+ * is assumed to be 100 ms.
  */
 #define UX_TICKER_EVENT(seph_packet, callback)                                 \
     UX_FORWARD_EVENT(                                                          \
@@ -431,6 +479,9 @@ extern ux_state_t ux;
                     callback                                                   \
                 }                                                              \
             }                                                                  \
+            if (UX_ALLOWED) {                                                  \
+                UX_CONTINUE_DISPLAY_APP({});                                   \
+            }                                                                  \
         },                                                                     \
         0);
 
@@ -439,7 +490,24 @@ extern ux_state_t ux;
  * either not processed or processed with extreme care by the application
  * afterwards
  */
-#define UX_DEFAULT_EVENT() UX_FORWARD_EVENT({}, 0);
+#define UX_DEFAULT_EVENT()                                                     \
+    UX_FORWARD_EVENT({ UX_CONTINUE_DISPLAY_APP({}); }, 0);
+
+/**
+ * Start displaying the system keyboard input to allow. keyboard entry ends when
+ * any ux call returns with an OK status.
+ */
+#define UX_DISPLAY_KEYBOARD(callback)                                          \
+    ux.params.ux_id = BOLOS_UX_KEYBOARD;                                       \
+    ux.params.len = 0;                                                         \
+    ux.params.len = os_ux(&ux.params);                                         \
+    ux_check_status(ux.params.len);
+
+/**
+ * This function is called after any BOLOS_UX. The goal is to check when a
+ * blocking UX call is terminating (it could happen on any event kind).
+ */
+void ux_check_status(unsigned int status);
 
 /**
  * Setup the TICKER_EVENT interval. Application shall not use this entry point
@@ -451,9 +519,8 @@ void io_seproxyhal_request_mcu_status(void);
 
 /**
  * Helper function to order the MCU to display the given bitmap with the given
-* color index, a table of size: (1<<bit_per_pixel) with little endian encoded
-* colors.
-* Deprecated
+ * color index, a table of size: (1<<bit_per_pixel) with little endian encoded
+ * colors. Deprecated
  */
 void io_seproxyhal_display_bitmap(int x, int y, unsigned int w, unsigned int h,
                                   unsigned int *color_index,
@@ -487,6 +554,15 @@ typedef struct bagl_icon_details_s {
  */
 void io_seproxyhal_display_icon(bagl_component_t *icon_component,
                                 bagl_icon_details_t *icon_details);
+
+/**
+ * Helper method on the Blue to output icon header to the MCU and allow for
+ * bitmap transformation
+ */
+unsigned int
+io_seproxyhal_display_icon_header_and_colors(bagl_component_t *icon_component,
+                                             bagl_icon_details_t *icon_details,
+                                             unsigned int *icon_len);
 
 // a menu callback is called with a given userid provided within the menu entry
 // to allow for fast switch of the action to be taken
@@ -592,6 +668,12 @@ void ux_turner_ticker(unsigned int elpased_ms);
 #define INARRAY(elementptr, array)                                             \
     ((unsigned int)elementptr >= (unsigned int)array &&                        \
      (unsigned int)elementptr < ((unsigned int)array) + sizeof(array))
+
+/**
+ * Wait until a UX call returns a definitve status. Handle all event packets in
+ * between
+ */
+unsigned int os_ux_blocking(bolos_ux_params_t *params);
 
 #endif // OS_IO_SEPROXYHAL
 

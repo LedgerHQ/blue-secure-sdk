@@ -1,19 +1,19 @@
 /*******************************************************************************
-*   Ledger Blue - Non secure firmware
-*   (c) 2016 Ledger
-*
-*  Licensed under the Apache License, Version 2.0 (the "License");
-*  you may not use this file except in compliance with the License.
-*  You may obtain a copy of the License at
-*
-*      http://www.apache.org/licenses/LICENSE-2.0
-*
-*   Unless required by applicable law or agreed to in writing, software
-*   distributed under the License is distributed on an "AS IS" BASIS,
-*   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-*   See the License for the specific language governing permissions and
-*   limitations under the License.
-********************************************************************************/
+ *   Ledger Blue - Non secure firmware
+ *   (c) 2016, 2017 Ledger
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ ********************************************************************************/
 
 #ifndef SEPROXYHAL_PROTOCOL_H
 #define SEPROXYHAL_PROTOCOL_H
@@ -39,6 +39,9 @@
 #define SEPROXYHAL_TAG_SESSION_START_EVENT_FEATURE_SCREEN_SML 0x00000200UL
 #define SEPROXYHAL_TAG_SESSION_START_EVENT_FEATURE_LEDRGB 0x00001000UL
 #define SEPROXYHAL_TAG_SESSION_START_EVENT_FEATURE_BATTERY 0x00000008UL
+#define SEPROXYHAL_TAG_SESSION_START_EVENT_FEATURE_ISET_MASK 0xF0000000UL
+#define SEPROXYHAL_TAG_SESSION_START_EVENT_FEATURE_ISET_BASIC 0x00000000UL
+#define SEPROXYHAL_TAG_SESSION_START_EVENT_FEATURE_ISET_MCUSEC 0x10000000UL
 
 #define SEPROXYHAL_TAG_BLE_PAIRING_ATTEMPT_EVENT 0x02
 #define SEPROXYHAL_TAG_BLE_WRITE_REQUEST_EVENT 0x03
@@ -89,9 +92,15 @@
 #define SEPROXYHAL_TAG_I2C_EVENT 0x17 // <rfubyte> <rawdata>
 
 // COMMANDS
-// #define SEPROXYHAL_TAG_MCU_BOOTLOADER              0x31 // DISABLED FOR
-// SECURITY REASON
-#define SEPROXYHAL_TAG_UNSEC_CHUNK_READ 0x32
+#ifdef HAVE_SEPROXYHAL_MCU_BOOTLOADER
+#define SEPROXYHAL_TAG_MCU_BOOTLOADER 0x31 // DISABLED FOR SECURITY REASON
+#endif                                     // HAVE_SEPROXYHAL_MCU_BOOTLOADER
+#define SEPROXYHAL_TAG_UNSEC_CHUNK_READ                                        \
+    0x32 // <length:U2BE> <restart(bit1)|continue=0>
+// available if SEPROXYHAL_TAG_SESSION_START_EVENT_FEATURE_ISET_MCUSEC
+#define SEPROXYHAL_TAG_UNSEC_CHUNK_READ_EXT                                    \
+    0x33 // <length:U2BE> <continue=0|restart(bit1)|specifyoffset(bit2)>
+         // <offset:U4BE>
 #define SEPROXYHAL_TAG_SET_SCREEN_CONFIG                                       \
     0x3E // <flags(1byte):pwron(128)|rotation(0:0,90:2,180:4,270:6)|invert(1)>
          // <brightness percentage(1byte)>
@@ -108,18 +117,18 @@
 #define SEPROXYHAL_TAG_BLE_NOTIFY_INDICATE 0x48
 #define SEPROXYHAL_TAG_BATTERY_CHARGE 0x49 // <>
 //#define SEPROXYHAL_TAG_SCREEN_DISPLAY              0x4A // wait for
-// display_event after sent
+//display_event after sent
 #define SEPROXYHAL_TAG_DEVICE_OFF 0x4B
 #define SEPROXYHAL_TAG_MORE_TIME 0x4C
 #define SEPROXYHAL_TAG_M24SR_C_APDU 0x4D
 #define SEPROXYHAL_TAG_SET_TICKER_INTERVAL 0x4E
-#define SEPROXYHAL_TAG_USB_CONFIG                                              \
-    0x4F // <connect/disconnect> <nbendpoints> [<epaddr>
+#define SEPROXYHAL_TAG_USB_CONFIG 0x4F // <connect/disconnect/addr/endpoints(1)>
+#define SEPROXYHAL_TAG_USB_CONFIG_CONNECT 0x01    // <>
+#define SEPROXYHAL_TAG_USB_CONFIG_DISCONNECT 0x02 // <>
+#define SEPROXYHAL_TAG_USB_CONFIG_ADDR 0x03       // <usb device address(1)>
+#define SEPROXYHAL_TAG_USB_CONFIG_ENDPOINTS                                    \
+    0x04 // <nbendpoints to configure(1)> [<epaddr>
          // <eptype:control/interrupt/bulk/isochrone/disabled> <epmps>]
-#define SEPROXYHAL_TAG_USB_CONFIG_CONNECT 0x01
-#define SEPROXYHAL_TAG_USB_CONFIG_DISCONNECT 0x02
-#define SEPROXYHAL_TAG_USB_CONFIG_ADDR 0x03
-#define SEPROXYHAL_TAG_USB_CONFIG_ENDPOINTS 0x04
 #define SEPROXYHAL_TAG_USB_CONFIG_TYPE_DISABLED 0x00
 #define SEPROXYHAL_TAG_USB_CONFIG_TYPE_CONTROL 0x01
 #define SEPROXYHAL_TAG_USB_CONFIG_TYPE_INTERRUPT 0x02
@@ -147,15 +156,15 @@
 #define SEPROXYHAL_TAG_GENERAL_STATUS 0x60
 #define SEPROXYHAL_TAG_GENERAL_STATUS_LAST_COMMAND 0x0000
 //#define SEPROXYHAL_TAG_GENERAL_STATUS_MORE_COMMAND 0x0001 // it's a status,
-// but it shall be a command instead to avoid perturbating the simple seproxyhal
-// bus logic
-//#define SEPROXYHAL_TAG_GENERAL_STATUS_ERROR        0x0002 // shall be a
-// command instead
+//but it shall be a command instead to avoid perturbating the simple seproxyhal
+//bus logic #define SEPROXYHAL_TAG_GENERAL_STATUS_ERROR        0x0002 // shall
+//be a command instead
 #define SEPROXYHAL_TAG_PAIRING_STATUS 0x61
 #define SEPROXYHAL_TAG_BLE_READ_RESPONSE_STATUS 0x62
 #define SEPROXYHAL_TAG_NFC_READ_RESPONSE_STATUS 0x63
 #define SEPROXYHAL_TAG_BLE_NOTIFY_INDICATE_STATUS 0x64
-#define SEPROXYHAL_TAG_SCREEN_DISPLAY_STATUS 0x65
+#define SEPROXYHAL_TAG_SCREEN_DISPLAY_STATUS                                   \
+    0x65 // <bagl_component_t little endian>
 #define SEPROXYHAL_TAG_PRINTF_STATUS 0x66
 #define SEPROXYHAL_TAG_SET_LINK_SPEED 0x67 // <mhz(1byte)> <etu(1byte)>
 #define SEPROXYHAL_TAG_SCREEN_ANIMATION_STATUS                                 \
@@ -164,11 +173,14 @@
 #define SEPROXYHAL_TAG_SCREEN_ANIMATION_STATUS_VERTICAL_SPLIT_SLIDE            \
     0x00 // param[0:1](BE) = split Y coordinate, param[2:3](BE) = animation
          // duration in ms
+
+#ifdef TARGET_BLUE
 #define SEPROXYHAL_TAG_SCREEN_DISPLAY_RAW_STATUS                               \
     0x69 // <start:0|next:1> [start? <x> <y> <w> <h> <bitperpixel>
          // <color_count*4 bytes (LE encoding)>] <icon bitmap (row scan, packed,
          // LE)>
 #define SEPROXYHAL_TAG_SCREEN_DISPLAY_RAW_STATUS_START 0x00
 #define SEPROXYHAL_TAG_SCREEN_DISPLAY_RAW_STATUS_CONT 0x01
+#endif
 
 #endif

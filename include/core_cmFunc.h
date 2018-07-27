@@ -1,25 +1,25 @@
 /**************************************************************************/ /**
-  * @file     core_cmFunc.h
-  * @brief    CMSIS Cortex-M Core Function Access Header File
-  * @version  V3.01
-  * @date     06. March 2012
-  *
-  * @note
-  * Copyright (C) 2009-2012 ARM Limited. All rights reserved.
-  *
-  * @par
-  * ARM Limited (ARM) is supplying this software for use with Cortex-M
-  * processor based microcontrollers.  This file can be freely distributed
-  * within development tools that are supporting such ARM based processors.
-  *
-  * @par
-  * THIS SOFTWARE IS PROVIDED "AS IS".  NO WARRANTIES, WHETHER EXPRESS, IMPLIED
-  * OR STATUTORY, INCLUDING, BUT NOT LIMITED TO, IMPLIED WARRANTIES OF
-  * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE APPLY TO THIS SOFTWARE.
-  * ARM SHALL NOT, IN ANY CIRCUMSTANCES, BE LIABLE FOR SPECIAL, INCIDENTAL, OR
-  * CONSEQUENTIAL DAMAGES, FOR ANY REASON WHATSOEVER.
-  *
-  ******************************************************************************/
+                                                                              * @file     core_cmFunc.h
+                                                                              * @brief    CMSIS Cortex-M Core Function Access Header File
+                                                                              * @version  V3.01
+                                                                              * @date     06. March 2012
+                                                                              *
+                                                                              * @note
+                                                                              * Copyright (C) 2009-2012 ARM Limited. All rights reserved.
+                                                                              *
+                                                                              * @par
+                                                                              * ARM Limited (ARM) is supplying this software for use with Cortex-M
+                                                                              * processor based microcontrollers.  This file can be freely distributed
+                                                                              * within development tools that are supporting such ARM based processors.
+                                                                              *
+                                                                              * @par
+                                                                              * THIS SOFTWARE IS PROVIDED "AS IS".  NO WARRANTIES, WHETHER EXPRESS, IMPLIED
+                                                                              * OR STATUTORY, INCLUDING, BUT NOT LIMITED TO, IMPLIED WARRANTIES OF
+                                                                              * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE APPLY TO THIS SOFTWARE.
+                                                                              * ARM SHALL NOT, IN ANY CIRCUMSTANCES, BE LIABLE FOR SPECIAL, INCIDENTAL, OR
+                                                                              * CONSEQUENTIAL DAMAGES, FOR ANY REASON WHATSOEVER.
+                                                                              *
+                                                                              ******************************************************************************/
 
 #ifndef __CORE_CMFUNC_H
 #define __CORE_CMFUNC_H
@@ -31,7 +31,7 @@
   @{
  */
 
-#if defined(__CC_ARM) /*------------------RealView Compiler \                                                                             \
+#if defined(__CC_ARM) /*------------------RealView Compiler                    \
                          -----------------*/
 /* ARM armcc specific functions */
 

@@ -24,7 +24,7 @@ $(info TARGET_NAME=$(TARGET_NAME) TARGET_ID=$(TARGET_ID))
 ifneq ($(SCP_PRIVKEY),)
 PARAM_SCP=--rootPrivateKey $(SCP_PRIVKEY)
 endif
-COMMON_LOAD_PARAMS=--params --targetId $(TARGET_ID) --fileName bin/app.hex --appName $(APPNAME) --appVersion $(APPVERSION) `ICONHEX=\`python $(BOLOS_SDK)/icon.py $(ICONNAME) hexbitmaponly 2>/dev/null\` ; [ ! -z "$$ICONHEX" ] && echo "--icon $$ICONHEX"` $(PARAM_SCP)
+COMMON_LOAD_PARAMS=--tlv --targetId $(TARGET_ID) --delete --fileName bin/app.hex --appName $(APPNAME) --appVersion $(APPVERSION) --dataSize `cat debug/app.map |grep _nvram_data_size | tr -s ' ' | cut -f2 -d' '` `ICONHEX=\`python $(BOLOS_SDK)/icon.py $(ICONNAME) hexbitmaponly 2>/dev/null\` ; [ ! -z "$$ICONHEX" ] && echo "--icon $$ICONHEX"` $(PARAM_SCP)
 COMMON_DELETE_PARAMS=--targetId $(TARGET_ID) --appName $(APPNAME) $(PARAM_SCP)
 
 ### platform definitions
@@ -33,7 +33,10 @@ DEFINES += ST31 gcc __IO=volatile
 # default is not to display make commands
 log = $(if $(strip $(VERBOSE)),$1,@$1)
 
-CFLAGS   += -gdwarf-2  -gstrict-dwarf 
+CFLAGS   += -gdwarf-2  -gstrict-dwarf
+CFLAGS   += -O3 -Os 
+CFLAGS   += -I/usr/include
+CFLAGS   += -fomit-frame-pointer
 CFLAGS   += -mcpu=cortex-m0 -mthumb 
 CFLAGS   += -fno-common -mtune=cortex-m0 -mlittle-endian 
 CFLAGS   += -std=gnu99 -Werror=int-to-pointer-cast -Wall -Wextra #-save-temps
@@ -41,12 +44,33 @@ CFLAGS   += -fdata-sections -ffunction-sections -funsigned-char -fshort-enums
 CFLAGS   += -mno-unaligned-access 
 CFLAGS   += -Wno-unused-parameter -Wno-duplicate-decl-specifier
 CFLAGS   += -fropi --target=armv6m-none-eabi
+CFLAGS   += -fno-jump-tables # avoid jump tables for switch to avoid problems with invalid PIC access
 
 AFLAGS += -ggdb2 -O3 -Os -mcpu=cortex-m0 -fno-common -mtune=cortex-m0
 
 LDFLAGS  += -gdwarf-2  -gstrict-dwarf 
+LDFLAGS  += -O3 -Os
+LDFLAGS  += -I/usr/include
+LDFLAGS  += -fomit-frame-pointer
 LDFLAGS  += -Wall 
 LDFLAGS  += -mcpu=cortex-m0 -mthumb 
 LDFLAGS  += -fno-common -ffunction-sections -fdata-sections -fwhole-program -nostartfiles 
 LDFLAGS  += -mno-unaligned-access
-LDFLAGS  += -T$(BOLOS_SDK)/script.ld  -Wl,--gc-sections -Wl,-Map,debug/app.map,--cref
+ifndef SCRIPT_LD
+  SCRIPT_LD:=$(BOLOS_SDK)/script.ld
+endif
+LDFLAGS  += -T$(SCRIPT_LD)  -Wl,--gc-sections -Wl,-Map,debug/app.map,--cref
+
+ifneq ($(BOLOS_ENV),)
+$(info BOLOS_ENV=$(BOLOS_ENV))
+CLANGPATH := $(BOLOS_ENV)/clang-arm-fropi/bin/
+GCCPATH := $(BOLOS_ENV)/gcc-arm-none-eabi-5_3-2016q1/bin/
+else
+$(info BOLOS_ENV is not set: falling back to CLANGPATH and GCCPATH)
+endif
+ifeq ($(CLANGPATH),)
+$(info CLANGPATH is not set: clang will be used from PATH)
+endif
+ifeq ($(GCCPATH),)
+$(info GCCPATH is not set: arm-none-eabi-* will be used from PATH)
+endif

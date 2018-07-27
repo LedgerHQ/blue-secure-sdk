@@ -176,6 +176,11 @@ int hci_send_req(struct hci_request *r, BOOL async)
   
   list_init_head((tListNode*)&hciTempQueue);
 
+  // cannot be processed, due to reentrancy
+  if (hciAwaitReply) {
+    return -1;
+  }
+
   hciAwaitReply = TRUE;
   
   hci_send_cmd(r->ogf, r->ocf, r->clen, r->cparam);
@@ -202,97 +207,105 @@ int hci_send_req(struct hci_request *r, BOOL async)
     // perform io_event based loop to wait for BLUENRG_RECV_EVENT
     for (;;) {
       io_seproxyhal_spi_recv(G_io_seproxyhal_spi_buffer, sizeof(G_io_seproxyhal_spi_buffer), 0);
+      // check if event is a ticker event
+      unsigned int ticker_event = G_io_seproxyhal_spi_buffer[0] == SEPROXYHAL_TAG_TICKER_EVENT;
+
       // process IOs, and BLE fetch, ble queue is updated through common code
       io_seproxyhal_handle_event();
 
       // don't ack the BLUENRG_RECV_EVENT as we would require to reply another command to it.
       if(!list_is_empty((tListNode*)&hciReadPktRxQueue)){
-        break;
+        /* Extract packet from HCI event queue. */
+        //Disable_SPI_IRQ();
+        list_remove_head((tListNode*)&hciReadPktRxQueue, (tListNode **)&hciReadPacket);    
+        list_insert_tail((tListNode*)&hciTempQueue, (tListNode *)hciReadPacket);
+        
+        hci_hdr = (void *)hciReadPacket->dataBuff;
+        if(hci_hdr->type != HCI_EVENT_PKT){
+          move_list((tListNode*)&hciReadPktPool, (tListNode*)&hciTempQueue);  
+          //list_insert_tail((tListNode*)&hciTempQueue, (tListNode *)hciReadPacket); // See comment below
+          //Enable_SPI_IRQ();
+          goto case_USER_PROCESS;
+        }
+        
+        event_pckt = (void *) (hci_hdr->data);
+        
+        ptr = hciReadPacket->dataBuff + (1 + HCI_EVENT_HDR_SIZE);
+        len = hciReadPacket->data_len - (1 + HCI_EVENT_HDR_SIZE);
+        
+        /* In the meantime there could be other events from the controller.
+        In this case, insert the packet in a different queue. These packets will be
+        inserted back in the main queue just before exiting from send_req().
+        */
+
+        event_pckt = (void *) (hci_hdr->data);
+        switch (event_pckt->evt) {
+          
+        case EVT_CMD_STATUS:
+          cs = (void *) ptr;
+          
+          if (cs->opcode != opcode) {
+            goto case_USER_PROCESS;
+          }
+          
+          if (r->event != EVT_CMD_STATUS) {
+            goto case_USER_PROCESS;
+          }
+          
+          r->rlen = MIN(len, r->rlen);
+          Osal_MemCpy(r->rparam, ptr, r->rlen);
+          goto done;
+          
+        case EVT_CMD_COMPLETE:
+          cc = (void *) ptr;
+          
+          if (cc->opcode != opcode) {
+            goto case_USER_PROCESS;
+          }
+          
+          ptr += EVT_CMD_COMPLETE_SIZE;
+          len -= EVT_CMD_COMPLETE_SIZE;
+          
+          r->rlen = MIN(len, r->rlen);
+          Osal_MemCpy(r->rparam, ptr, r->rlen);
+          goto done;
+          
+        case EVT_LE_META_EVENT:
+          me = (void *) ptr;
+          
+          if (me->subevent != r->event) {
+            goto case_USER_PROCESS;
+          }
+          
+          len -= 1;
+          r->rlen = MIN(len, r->rlen);
+          Osal_MemCpy(r->rparam, me->data, r->rlen);
+          goto done;
+          
+        case EVT_HARDWARE_ERROR:
+          return -1;
+
+        default:      
+        case_USER_PROCESS:
+          HCI_Event_CB(hciReadPacket->dataBuff);
+          break;
+        }
       }
 
       // timeout
-      if (!to--) {
-        return -1;
+      if (ticker_event) {
+        if (to) {
+          to--;
+        }
+        // don't signal timeout if the event has been closed by handle event to avoid sending commands after a status has been issued
+        else if (!io_seproxyhal_spi_is_status_sent()) {
+          return -1;
+        }
       }
 
       // ack the received event we have processed
       io_seproxyhal_general_status();
     }
-    
-    /* Extract packet from HCI event queue. */
-    //Disable_SPI_IRQ();
-    list_remove_head((tListNode*)&hciReadPktRxQueue, (tListNode **)&hciReadPacket);    
-    list_insert_tail((tListNode*)&hciTempQueue, (tListNode *)hciReadPacket);
-    
-    hci_hdr = (void *)hciReadPacket->dataBuff;
-    if(hci_hdr->type != HCI_EVENT_PKT){
-      move_list((tListNode*)&hciReadPktPool, (tListNode*)&hciTempQueue);  
-      //list_insert_tail((tListNode*)&hciTempQueue, (tListNode *)hciReadPacket); // See comment below
-      //Enable_SPI_IRQ();
-      continue;
-    }
-    
-    event_pckt = (void *) (hci_hdr->data);
-    
-    ptr = hciReadPacket->dataBuff + (1 + HCI_EVENT_HDR_SIZE);
-    len = hciReadPacket->data_len - (1 + HCI_EVENT_HDR_SIZE);
-    
-    /* In the meantime there could be other events from the controller.
-    In this case, insert the packet in a different queue. These packets will be
-    inserted back in the main queue just before exiting from send_req().
-    */
-    
-    switch (event_pckt->evt) {
-      
-    case EVT_CMD_STATUS:
-      cs = (void *) ptr;
-      
-      if (cs->opcode != opcode)
-        goto failed;
-      
-      if (r->event != EVT_CMD_STATUS) {
-        if (cs->status) {
-          goto failed;
-        }
-        break;
-      }
-      
-      r->rlen = MIN(len, r->rlen);
-      Osal_MemCpy(r->rparam, ptr, r->rlen);
-      goto done;
-      
-    case EVT_CMD_COMPLETE:
-      cc = (void *) ptr;
-      
-      if (cc->opcode != opcode)
-        goto failed;
-      
-      ptr += EVT_CMD_COMPLETE_SIZE;
-      len -= EVT_CMD_COMPLETE_SIZE;
-      
-      r->rlen = MIN(len, r->rlen);
-      Osal_MemCpy(r->rparam, ptr, r->rlen);
-      goto done;
-      
-    case EVT_LE_META_EVENT:
-      me = (void *) ptr;
-      
-      if (me->subevent != r->event)
-        break;
-      
-      len -= 1;
-      r->rlen = MIN(len, r->rlen);
-      Osal_MemCpy(r->rparam, me->data, r->rlen);
-      goto done;
-      
-    case EVT_HARDWARE_ERROR:            
-      goto failed;
-      
-    default:      
-      break;
-    }
-    
-    
     
     
     //Enable_SPI_IRQ();

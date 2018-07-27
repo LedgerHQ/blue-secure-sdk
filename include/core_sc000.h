@@ -1,25 +1,25 @@
 /**************************************************************************/ /**
-  * @file     core_sc000.h
-  * @brief    CMSIS SC000 Core Peripheral Access Layer Header File
-  * @version  V3.01
-  * @date     22. March 2012
-  *
-  * @note
-  * Copyright (C) 2009-2012 ARM Limited. All rights reserved.
-  *
-  * @par
-  * ARM Limited (ARM) is supplying this software for use with Cortex-M
-  * processor based microcontrollers.  This file can be freely distributed
-  * within development tools that are supporting such ARM based processors.
-  *
-  * @par
-  * THIS SOFTWARE IS PROVIDED "AS IS".  NO WARRANTIES, WHETHER EXPRESS, IMPLIED
-  * OR STATUTORY, INCLUDING, BUT NOT LIMITED TO, IMPLIED WARRANTIES OF
-  * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE APPLY TO THIS SOFTWARE.
-  * ARM SHALL NOT, IN ANY CIRCUMSTANCES, BE LIABLE FOR SPECIAL, INCIDENTAL, OR
-  * CONSEQUENTIAL DAMAGES, FOR ANY REASON WHATSOEVER.
-  *
-  ******************************************************************************/
+                                                                              * @file     core_sc000.h
+                                                                              * @brief    CMSIS SC000 Core Peripheral Access Layer Header File
+                                                                              * @version  V3.01
+                                                                              * @date     22. March 2012
+                                                                              *
+                                                                              * @note
+                                                                              * Copyright (C) 2009-2012 ARM Limited. All rights reserved.
+                                                                              *
+                                                                              * @par
+                                                                              * ARM Limited (ARM) is supplying this software for use with Cortex-M
+                                                                              * processor based microcontrollers.  This file can be freely distributed
+                                                                              * within development tools that are supporting such ARM based processors.
+                                                                              *
+                                                                              * @par
+                                                                              * THIS SOFTWARE IS PROVIDED "AS IS".  NO WARRANTIES, WHETHER EXPRESS, IMPLIED
+                                                                              * OR STATUTORY, INCLUDING, BUT NOT LIMITED TO, IMPLIED WARRANTIES OF
+                                                                              * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE APPLY TO THIS SOFTWARE.
+                                                                              * ARM SHALL NOT, IN ANY CIRCUMSTANCES, BE LIABLE FOR SPECIAL, INCIDENTAL, OR
+                                                                              * CONSEQUENTIAL DAMAGES, FOR ANY REASON WHATSOEVER.
+                                                                              *
+                                                                              ******************************************************************************/
 #if defined(__ICCARM__)
 #pragma system_include /* treat file as system include file for MISRA check */
 #endif
@@ -38,8 +38,7 @@ extern "C" {
      Function definitions in header files are used to allow 'inlining'.
 
    \li Required Rule 18.4, declaration of union type or object of union type:
-  '{...}'.<br>
-     Unions are used for effective representation of core registers.
+  '{...}'.<br> Unions are used for effective representation of core registers.
 
    \li Advisory Rule 19.7, Function-like macro defined.<br>
      Function-like macros are used to allow more efficient code.
@@ -53,10 +52,9 @@ extern "C" {
  */
 
 /*  CMSIS SC000 definitions */
-#define __SC000_CMSIS_VERSION_MAIN                                             \
-    (0x03) /*!< [31:16] CMSIS HAL main version  \                              \
-              */
-#define __SC000_CMSIS_VERSION_SUB (0x01) /*!< [15:0]  CMSIS HAL sub version */
+#define __SC000_CMSIS_VERSION_MAIN (0x03) /*!< [31:16] CMSIS HAL main version  \
+                                           */
+#define __SC000_CMSIS_VERSION_SUB (0x01)  /*!< [15:0]  CMSIS HAL sub version  */
 #define __SC000_CMSIS_VERSION                                                  \
     ((__SC000_CMSIS_VERSION_MAIN << 16) |                                      \
      __SC000_CMSIS_VERSION_SUB) /*!< CMSIS HAL version number       */
@@ -71,7 +69,7 @@ extern "C" {
 #elif defined(__ICCARM__)
 #define __ASM __asm /*!< asm keyword for IAR Compiler          */
 #define __INLINE                                                               \
-    inline /*!< inline keyword for IAR Compiler. Only available in High \                                                                             \
+    inline /*!< inline keyword for IAR Compiler. Only available in High        \
               optimization mode! */
 #define __STATIC_INLINE static inline
 
@@ -89,7 +87,7 @@ extern "C" {
 
 /** __FPU_USED indicates whether an FPU is used or not. This core does not
  * support an FPU at all
-*/
+ */
 #define __FPU_USED 0
 
 #if defined(__CC_ARM)
@@ -214,7 +212,7 @@ typedef union {
  */
 typedef union {
     struct {
-        uint32_t ISR : 9;         /*!< bit:  0.. 8  Exception number */
+        uint32_t ISR : 9;         /*!< bit:  0.. 8  Exception number         */
         uint32_t _reserved0 : 23; /*!< bit:  9..31  Reserved */
     } b;        /*!< Structure used for bit  access                  */
     uint32_t w; /*!< Type      used for word access                  */
@@ -250,8 +248,8 @@ typedef union {
     struct {
         uint32_t
             nPRIV : 1; /*!< bit:      0  Execution privilege in Thread mode */
-        uint32_t SPSEL : 1;       /*!< bit:      1  Stack to be used */
-        uint32_t FPCA : 1;        /*!< bit:      2  FP extension active flag */
+        uint32_t SPSEL : 1;       /*!< bit:      1  Stack to be used       */
+        uint32_t FPCA : 1;        /*!< bit:      2  FP extension active flag        */
         uint32_t _reserved0 : 29; /*!< bit:  3..31  Reserved */
     } b;        /*!< Structure used for bit  access                  */
     uint32_t w; /*!< Type      used for word access                  */
@@ -298,13 +296,13 @@ typedef struct {
  */
 typedef struct {
     __I uint32_t CPUID; /*!< Offset: 0x000 (R/ )  CPUID Base Register */
-    __IO uint32_t
-        ICSR; /*!< Offset: 0x004 (R/W)  Interrupt Control and State Register */
+    __IO uint32_t ICSR; /*!< Offset: 0x004 (R/W)  Interrupt Control and State
+                           Register                  */
     __IO uint32_t
         VTOR; /*!< Offset: 0x008 (R/W)  Vector Table Offset Register */
     __IO uint32_t AIRCR; /*!< Offset: 0x00C (R/W)  Application Interrupt and
                             Reset Control Register      */
-    __IO uint32_t SCR;   /*!< Offset: 0x010 (R/W)  System Control Register */
+    __IO uint32_t SCR;   /*!< Offset: 0x010 (R/W)  System Control Register   */
     __IO uint32_t
         CCR; /*!< Offset: 0x014 (R/W)  Configuration Control Register */
     uint32_t RESERVED0[1];
@@ -313,7 +311,8 @@ typedef struct {
     __IO uint32_t SHCSR;  /*!< Offset: 0x024 (R/W)  System Handler Control and
                              State Register             */
     uint32_t RESERVED1[154];
-    __IO uint32_t SFCR; /*!< Offset: 0x290 (R/W)  Security Features Register */
+    __IO uint32_t
+        SFCR; /*!< Offset: 0x290 (R/W)  Security Features Register */
 } SCB_Type;
 
 /* SCB CPUID Register Definitions */
@@ -386,8 +385,8 @@ typedef struct {
 
 #define SCB_AIRCR_VECTKEYSTAT_Pos 16 /*!< SCB AIRCR: VECTKEYSTAT Position */
 #define SCB_AIRCR_VECTKEYSTAT_Msk                                              \
-    (0xFFFFUL << SCB_AIRCR_VECTKEYSTAT_Pos) /*!< SCB AIRCR: VECTKEYSTAT Mask \                                                                             \
-                                               */
+    (0xFFFFUL << SCB_AIRCR_VECTKEYSTAT_Pos) /*!< SCB AIRCR: VECTKEYSTAT Mask   \
+                                             */
 
 #define SCB_AIRCR_ENDIANESS_Pos 15 /*!< SCB AIRCR: ENDIANESS Position */
 #define SCB_AIRCR_ENDIANESS_Msk                                                \
@@ -397,9 +396,8 @@ typedef struct {
 #define SCB_AIRCR_SYSRESETREQ_Msk                                              \
     (1UL << SCB_AIRCR_SYSRESETREQ_Pos) /*!< SCB AIRCR: SYSRESETREQ Mask */
 
-#define SCB_AIRCR_VECTCLRACTIVE_Pos                                            \
-    1 /*!< SCB AIRCR: VECTCLRACTIVE Position   \                               \
-         */
+#define SCB_AIRCR_VECTCLRACTIVE_Pos 1 /*!< SCB AIRCR: VECTCLRACTIVE Position   \
+                                       */
 #define SCB_AIRCR_VECTCLRACTIVE_Msk                                            \
     (1UL << SCB_AIRCR_VECTCLRACTIVE_Pos) /*!< SCB AIRCR: VECTCLRACTIVE Mask */
 
@@ -453,7 +451,8 @@ typedef struct {
  */
 typedef struct {
     uint32_t RESERVED0[2];
-    __IO uint32_t ACTLR; /*!< Offset: 0x008 (R/W)  Auxiliary Control Register */
+    __IO uint32_t
+        ACTLR; /*!< Offset: 0x008 (R/W)  Auxiliary Control Register      */
 } SCnSCB_Type;
 
 /* Auxiliary Control Register Definitions */
@@ -534,14 +533,13 @@ typedef struct {
 /** \brief  Structure type to access the Memory Protection Unit (MPU).
  */
 typedef struct {
-    __I uint32_t TYPE;  /*!< Offset: 0x000 (R/ )  MPU Type Register */
+    __I uint32_t TYPE;  /*!< Offset: 0x000 (R/ )  MPU Type Register  */
     __IO uint32_t CTRL; /*!< Offset: 0x004 (R/W)  MPU Control Register */
-    __IO uint32_t RNR;  /*!< Offset: 0x008 (R/W)  MPU Region RNRber Register */
+    __IO uint32_t RNR;  /*!< Offset: 0x008 (R/W)  MPU Region RNRber Register  */
     __IO uint32_t
         RBAR; /*!< Offset: 0x00C (R/W)  MPU Region Base Address Register */
-    __IO uint32_t
-        RASR; /*!< Offset: 0x010 (R/W)  MPU Region Attribute and Size Register
-                 */
+    __IO uint32_t RASR; /*!< Offset: 0x010 (R/W)  MPU Region Attribute and Size
+                           Register         */
 } MPU_Type;
 
 /* MPU Type Register */
@@ -596,9 +594,8 @@ typedef struct {
      << MPU_RASR_ATTRS_Pos) /*!< MPU RASR: MPU Region Attribute field Mask */
 
 #define MPU_RASR_XN_Pos 28 /*!< MPU RASR: ATTRS.XN Position */
-#define MPU_RASR_XN_Msk                                                        \
-    (1UL << MPU_RASR_XN_Pos) /*!< MPU RASR: ATTRS.XN Mask  \                   \
-                                */
+#define MPU_RASR_XN_Msk (1UL << MPU_RASR_XN_Pos) /*!< MPU RASR: ATTRS.XN Mask  \
+                                                  */
 
 #define MPU_RASR_AP_Pos 24 /*!< MPU RASR: ATTRS.AP Position */
 #define MPU_RASR_AP_Msk                                                        \
@@ -653,10 +650,9 @@ typedef struct {
 #define SysTick_BASE                                                           \
     (SCS_BASE + 0x0010UL) /*!< SysTick Base Address              */
 #define NVIC_BASE                                                              \
-    (SCS_BASE + 0x0100UL) /*!< NVIC Base Address                 */
-#define SCB_BASE                                                               \
-    (SCS_BASE + 0x0D00UL) /*!< System Control Block Base Address  \            \
-                             */
+    (SCS_BASE + 0x0100UL)              /*!< NVIC Base Address                 */
+#define SCB_BASE (SCS_BASE + 0x0D00UL) /*!< System Control Block Base Address  \
+                                        */
 
 #define SCnSCB                                                                 \
     ((SCnSCB_Type *)SCS_BASE)      /*!< System control Register not in SCB */
@@ -681,7 +677,7 @@ typedef struct {
   - Core Register Access Functions
  ******************************************************************************/
 /** \defgroup CMSIS_Core_FunctionInterface Functions and Instructions Reference
-*/
+ */
 
 /* ##########################   NVIC functions
  * #################################### */
@@ -690,6 +686,114 @@ typedef struct {
     \brief      Functions that manage interrupts and exceptions via the NVIC.
     @{
  */
+
+/* Interrupt Priorities are WORD accessible only under ARMv6M */
+/* The following MACROS handle generation of the register offset and byte masks
+ */
+#define _BIT_SHIFT(IRQn) ((((uint32_t)(IRQn)) & 0x03) * 8)
+#define _SHP_IDX(IRQn) (((((uint32_t)(IRQn)&0x0F) - 8) >> 2))
+#define _IP_IDX(IRQn) (((uint32_t)(IRQn) >> 2))
+
+/** \brief  Enable External Interrupt
+
+    The function enables a device-specific interrupt in the NVIC interrupt
+   controller.
+
+    \param [in]      IRQn  External interrupt number. Value cannot be negative.
+ */
+__STATIC_INLINE void NVIC_EnableIRQ(IRQn_Type IRQn) {
+    NVIC->ISER[0] = (1 << ((uint32_t)(IRQn)&0x1F));
+}
+
+/** \brief  Disable External Interrupt
+
+    The function disables a device-specific interrupt in the NVIC interrupt
+   controller.
+
+    \param [in]      IRQn  External interrupt number. Value cannot be negative.
+ */
+__STATIC_INLINE void NVIC_DisableIRQ(IRQn_Type IRQn) {
+    NVIC->ICER[0] = (1 << ((uint32_t)(IRQn)&0x1F));
+}
+
+/** \brief  Get Pending Interrupt
+
+    The function reads the pending register in the NVIC and returns the pending
+   bit for the specified interrupt.
+
+    \param [in]      IRQn  Interrupt number.
+
+    \return             0  Interrupt status is not pending.
+    \return             1  Interrupt status is pending.
+ */
+__STATIC_INLINE uint32_t NVIC_GetPendingIRQ(IRQn_Type IRQn) {
+    return (
+        (uint32_t)((NVIC->ISPR[0] & (1 << ((uint32_t)(IRQn)&0x1F))) ? 1 : 0));
+}
+
+/** \brief  Set Pending Interrupt
+
+    The function sets the pending bit of an external interrupt.
+
+    \param [in]      IRQn  Interrupt number. Value cannot be negative.
+ */
+__STATIC_INLINE void NVIC_SetPendingIRQ(IRQn_Type IRQn) {
+    NVIC->ISPR[0] = (1 << ((uint32_t)(IRQn)&0x1F));
+}
+
+/** \brief  Clear Pending Interrupt
+
+    The function clears the pending bit of an external interrupt.
+
+    \param [in]      IRQn  External interrupt number. Value cannot be negative.
+ */
+__STATIC_INLINE void NVIC_ClearPendingIRQ(IRQn_Type IRQn) {
+    NVIC->ICPR[0] =
+        (1 << ((uint32_t)(IRQn)&0x1F)); /* Clear pending interrupt */
+}
+
+/** \brief  Set Interrupt Priority
+
+    The function sets the priority of an interrupt.
+
+    \note The priority cannot be set for every core interrupt.
+
+    \param [in]      IRQn  Interrupt number.
+    \param [in]  priority  Priority to set.
+ */
+__STATIC_INLINE void NVIC_SetPriority(IRQn_Type IRQn, uint32_t priority) {
+    if (IRQn < 0) {
+        SCB->SHP[_SHP_IDX(IRQn)] =
+            (SCB->SHP[_SHP_IDX(IRQn)] & ~(0xFF << _BIT_SHIFT(IRQn))) |
+            (((priority << (8 - __NVIC_PRIO_BITS)) & 0xFF) << _BIT_SHIFT(IRQn));
+    } else {
+        NVIC->IP[_IP_IDX(IRQn)] =
+            (NVIC->IP[_IP_IDX(IRQn)] & ~(0xFF << _BIT_SHIFT(IRQn))) |
+            (((priority << (8 - __NVIC_PRIO_BITS)) & 0xFF) << _BIT_SHIFT(IRQn));
+    }
+}
+
+/** \brief  Get Interrupt Priority
+
+    The function reads the priority of an interrupt. The interrupt
+    number can be positive to specify an external (device specific)
+    interrupt, or negative to specify an internal (core) interrupt.
+
+
+    \param [in]   IRQn  Interrupt number.
+    \return             Interrupt Priority. Value is aligned automatically to
+   the implemented priority bits of the microcontroller.
+ */
+__STATIC_INLINE uint32_t NVIC_GetPriority(IRQn_Type IRQn) {
+    if (IRQn < 0) {
+        return ((uint32_t)((SCB->SHP[_SHP_IDX(IRQn)] >> _BIT_SHIFT(IRQn)) >>
+                           (8 - __NVIC_PRIO_BITS)));
+    } /* get priority for SC000 system interrupts */
+    else {
+        return ((uint32_t)((NVIC->IP[_IP_IDX(IRQn)] >> _BIT_SHIFT(IRQn)) >>
+                           (8 - __NVIC_PRIO_BITS)));
+    } /* get priority for device specific interrupts  */
+}
 
 /** \brief  System Reset
 
@@ -719,8 +823,8 @@ __STATIC_INLINE void NVIC_SystemReset(void) {
 /** \brief  System Tick Configuration
 
     The function initializes the System Timer and its interrupt, and starts the
-   System Tick Timer.
-    Counter is in free running mode to generate periodic interrupts.
+   System Tick Timer. Counter is in free running mode to generate periodic
+   interrupts.
 
     \param [in]  ticks  Number of ticks between two interrupts.
 
@@ -728,10 +832,9 @@ __STATIC_INLINE void NVIC_SystemReset(void) {
     \return          1  Function failed.
 
     \note     When the variable <b>__Vendor_SysTickConfig</b> is set to 1, then
-   the
-    function <b>SysTick_Config</b> is not included. In this case, the file
-   <b><i>device</i>.h</b>
-    must contain a vendor-specific implementation of this function.
+   the function <b>SysTick_Config</b> is not included. In this case, the file
+   <b><i>device</i>.h</b> must contain a vendor-specific implementation of this
+   function.
 
  */
 __STATIC_INLINE uint32_t SysTick_Config(uint32_t ticks) {

@@ -1,25 +1,25 @@
 /**************************************************************************/ /**
-  * @file     core_cmInstr.h
-  * @brief    CMSIS Cortex-M Core Instruction Access Header File
-  * @version  V3.01
-  * @date     06. March 2012
-  *
-  * @note
-  * Copyright (C) 2009-2012 ARM Limited. All rights reserved.
-  *
-  * @par
-  * ARM Limited (ARM) is supplying this software for use with Cortex-M
-  * processor based microcontrollers.  This file can be freely distributed
-  * within development tools that are supporting such ARM based processors.
-  *
-  * @par
-  * THIS SOFTWARE IS PROVIDED "AS IS".  NO WARRANTIES, WHETHER EXPRESS, IMPLIED
-  * OR STATUTORY, INCLUDING, BUT NOT LIMITED TO, IMPLIED WARRANTIES OF
-  * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE APPLY TO THIS SOFTWARE.
-  * ARM SHALL NOT, IN ANY CIRCUMSTANCES, BE LIABLE FOR SPECIAL, INCIDENTAL, OR
-  * CONSEQUENTIAL DAMAGES, FOR ANY REASON WHATSOEVER.
-  *
-  ******************************************************************************/
+                                                                              * @file     core_cmInstr.h
+                                                                              * @brief    CMSIS Cortex-M Core Instruction Access Header File
+                                                                              * @version  V3.01
+                                                                              * @date     06. March 2012
+                                                                              *
+                                                                              * @note
+                                                                              * Copyright (C) 2009-2012 ARM Limited. All rights reserved.
+                                                                              *
+                                                                              * @par
+                                                                              * ARM Limited (ARM) is supplying this software for use with Cortex-M
+                                                                              * processor based microcontrollers.  This file can be freely distributed
+                                                                              * within development tools that are supporting such ARM based processors.
+                                                                              *
+                                                                              * @par
+                                                                              * THIS SOFTWARE IS PROVIDED "AS IS".  NO WARRANTIES, WHETHER EXPRESS, IMPLIED
+                                                                              * OR STATUTORY, INCLUDING, BUT NOT LIMITED TO, IMPLIED WARRANTIES OF
+                                                                              * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE APPLY TO THIS SOFTWARE.
+                                                                              * ARM SHALL NOT, IN ANY CIRCUMSTANCES, BE LIABLE FOR SPECIAL, INCIDENTAL, OR
+                                                                              * CONSEQUENTIAL DAMAGES, FOR ANY REASON WHATSOEVER.
+                                                                              *
+                                                                              ******************************************************************************/
 
 #ifndef __CORE_CMINSTR_H
 #define __CORE_CMINSTR_H
@@ -31,7 +31,7 @@
   @{
 */
 
-#if defined(__CC_ARM) /*------------------RealView Compiler \                                                                             \
+#if defined(__CC_ARM) /*------------------RealView Compiler                    \
                          -----------------*/
 /* ARM armcc specific functions */
 
@@ -86,8 +86,7 @@
 /** \brief  Data Memory Barrier
 
     This function ensures the apparent order of the explicit memory operations
-   before
-    and after the instruction, without ensuring their completion.
+   before and after the instruction, without ensuring their completion.
  */
 #define __DMB() __dmb(0xF)
 
@@ -320,8 +319,7 @@ __attribute__((always_inline)) __STATIC_INLINE void __DSB(void) {
 /** \brief  Data Memory Barrier
 
     This function ensures the apparent order of the explicit memory operations
-   before
-    and after the instruction, without ensuring their completion.
+   before and after the instruction, without ensuring their completion.
  */
 __attribute__((always_inline)) __STATIC_INLINE void __DMB(void) {
     __ASM volatile("dmb");
@@ -522,8 +520,7 @@ __attribute__((always_inline)) __STATIC_INLINE void __CLREX(void) {
     \return             Saturated value
  */
 #define __SSAT(ARG1, ARG2)                                                     \
-    \
-({                                                                             \
+    ({                                                                         \
         uint32_t __RES, __ARG1 = (ARG1);                                       \
         __ASM("ssat %0, %1, %2" : "=r"(__RES) : "I"(ARG2), "r"(__ARG1));       \
         __RES;                                                                 \
@@ -538,8 +535,7 @@ __attribute__((always_inline)) __STATIC_INLINE void __CLREX(void) {
     \return             Saturated value
  */
 #define __USAT(ARG1, ARG2)                                                     \
-    \
-({                                                                             \
+    ({                                                                         \
         uint32_t __RES, __ARG1 = (ARG1);                                       \
         __ASM("usat %0, %1, %2" : "=r"(__RES) : "I"(ARG2), "r"(__ARG1));       \
         __RES;                                                                 \
@@ -573,6 +569,6 @@ __attribute__((always_inline)) __STATIC_INLINE uint8_t __CLZ(uint32_t value) {
 
 #endif
 
-    /*@}*/ /* end of group CMSIS_Core_InstructionInterface */
+/*@}*/ /* end of group CMSIS_Core_InstructionInterface */
 
 #endif /* __CORE_CMINSTR_H */

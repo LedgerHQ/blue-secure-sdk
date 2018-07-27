@@ -96,11 +96,6 @@ testable const int8_t ECC_CODEWORDS_PER_BLOCK[][41] = {
 	// Version: (note that index 0 is for padding, and is set to an illegal value)
 	//0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40    Error correction level
 	{-1,  7, 10, 15, 20, 26, 18, 20, 24, 30, 18, 20, 24, 26, 30, 22, 24, 28, 30, 28, 28, 28, 28, 30, 30, 26, 28, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30},  // Low
-#if 0
-	{-1, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26, 30, 22, 22, 24, 24, 28, 28, 26, 26, 26, 26, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28},  // Medium
-	{-1, 13, 22, 18, 26, 18, 24, 18, 22, 20, 24, 28, 26, 24, 20, 30, 24, 28, 28, 26, 30, 28, 30, 30, 30, 30, 28, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30},  // Quartile
-	{-1, 17, 28, 22, 16, 22, 28, 26, 26, 24, 28, 24, 28, 22, 24, 24, 30, 28, 28, 26, 28, 30, 24, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30},  // High
-#endif // 0
 };
 
 // For generating error correction codes.
@@ -108,11 +103,6 @@ testable const int8_t NUM_ERROR_CORRECTION_BLOCKS[][41] = {
 	// Version: (note that index 0 is for padding, and is set to an illegal value)
 	//0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40    Error correction level
 	{-1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 4,  4,  4,  4,  4,  6,  6,  6,  6,  7,  8,  8,  9,  9, 10, 12, 12, 12, 13, 14, 15, 16, 17, 18, 19, 19, 20, 21, 22, 24, 25},  // Low
-#if 0
-	{-1, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5,  5,  8,  9,  9, 10, 10, 11, 13, 14, 16, 17, 17, 18, 20, 21, 23, 25, 26, 28, 29, 31, 33, 35, 37, 38, 40, 43, 45, 47, 49},  // Medium
-	{-1, 1, 1, 2, 2, 4, 4, 6, 6, 8, 8,  8, 10, 12, 16, 12, 17, 16, 18, 21, 20, 23, 23, 25, 27, 29, 34, 34, 35, 38, 40, 43, 45, 48, 51, 53, 56, 59, 62, 65, 68},  // Quartile
-	{-1, 1, 1, 2, 4, 4, 4, 5, 6, 8, 8, 11, 11, 16, 16, 18, 16, 19, 21, 25, 25, 25, 34, 30, 32, 35, 37, 40, 42, 45, 48, 51, 54, 57, 60, 63, 66, 70, 74, 77, 81},  // High
-#endif // 0
 };
 
 // For automatic mask pattern selection.
@@ -125,60 +115,6 @@ static const int PENALTY_N4 = 10;
 
 /*---- High-level QR Code encoding functions ----*/
 
-#if 0
-// Public function - see documentation comment in header file.
-bool qrcodegen_encodeText(const char *text, uint8_t tempBuffer[], uint8_t qrcode[],
-		enum qrcodegen_Ecc ecl, int minVersion, int maxVersion, enum qrcodegen_Mask mask, bool boostEcl) {
-	assert(text != NULL && tempBuffer != NULL && qrcode != NULL);
-	assert(qrcodegen_VERSION_MIN <= minVersion && minVersion <= maxVersion && maxVersion <= qrcodegen_VERSION_MAX);
-	assert(0 <= (int)ecl && (int)ecl <= 3 && -1 <= (int)mask && (int)mask <= 7);
-	
-	// force low correction level
-	enum qrcodegen_Ecc ecl = qrcodegen_Ecc_LOW;
-
-	// Get text properties
-	int textBits;
-	/*
-	int textLen = getTextProperties(text, &isNumeric, &isAlphanumeric, &textBits);
-	if (textLen < 0)
-		goto fail;
-	*/
-
-	enum qrcodegen_Ecc ecl = qrcodegen_Ecc_LOW;
-	
-	//int version = fitVersionToData(minVersion, maxVersion, ecl, textLen, (int)textBits, (isNumeric ? 10 : 9), (isNumeric ? 12 : 11), (isNumeric ? 14 : 13));
-	int version = 3; // sufficient for eth and btc addresses
-	if (version == 0)
-		goto fail;
-	memset(qrcode, 0, qrcodegen_BUFFER_LEN_FOR_VERSION(version) * sizeof(qrcode[0]));
-	int bitLen = 0;
-	
-	appendBitsToBuffer(2, 4, qrcode, &bitLen);
-	int lengthBits = version <= 9 ? 9 : (version <= 26 ? 11 : 13);
-	appendBitsToBuffer((unsigned int)textLen, lengthBits, qrcode, &bitLen);
-	int accumData = 0;
-	int accumCount = 0;
-	for (const char *p = text; *p != '\0'; p++) {
-		accumData = accumData * 45 + (strchr(ALPHANUMERIC_CHARSET, *p) - ALPHANUMERIC_CHARSET);
-		accumCount++;
-		if (accumCount == 2) {
-			appendBitsToBuffer(accumData, 11, qrcode, &bitLen);
-			accumData = 0;
-			accumCount = 0;
-		}
-	}
-	if (accumCount > 0)  // 1 character remaining
-		appendBitsToBuffer(accumData, 6, qrcode, &bitLen);
-	
-	// Make QR Code
-	encodeQrCodeTail(qrcode, bitLen, tempBuffer, version, ecl, mask, boostEcl);
-	return true;
-	
-fail:
-	qrcode[0] = 0;  // An invalid size value for safety
-	return false;
-}
-#endif
 
 
 // Public function - see documentation comment in header file.
